@@ -1,0 +1,21 @@
+
+MS SQL Server - 
+Download Microsoft JDBC Driver 6.0 for SQL Server from - https://www.microsoft.com/en-us/download/details.aspx?id=11774
+
+HortonWorks - 
+cp sqljdbc41.jar /usr/hdp/2.5.0.0-1245/sqoop/lib/sqljdbc41.jar
+
+mysql -u root -p
+mysql> create database retail_db;
+mysql> use retail_db;
+mysql> source retail_db.sql;
+mysql> show tables;
+
+
+
+
+
+
+
+
+
