@@ -1,0 +1,14 @@
+
+MS SQL Server - 
+Download Microsoft JDBC Driver 6.0 for SQL Server from - https://www.microsoft.com/en-us/download/details.aspx?id=11774
+
+HortonWorks - 
+cp sqljdbc41.jar /usr/hdp/2.5.0.0-1245/sqoop/lib/sqljdbc41.jar
+
+sqoop import --connect 'jdbc:sqlserver://192.168.0.2:1433;username=sa;password=******;database=gosalesdw' --table sls_product_dim --warehouse-dir /user/sqlserver/gosalesdw -- --schema gosalesdw;
+
+
+
+
+
+
