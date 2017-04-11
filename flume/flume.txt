@@ -1,0 +1,210 @@
+cd /etc/flume/conf
+
+Usage: /usr/hdp/2.5.0.0-1245/flume/bin/flume-ng.distro <command> [options]...
+
+commands:
+  help                  display this help text
+  agent                 run a Flume agent
+  avro-client           run an avro Flume client
+  password              create a password file for use in flume config
+  version               show Flume version info
+
+global options:
+  --conf,-c <conf>      use configs in <conf> directory
+  --classpath,-C <cp>   append to the classpath
+  --dryrun,-d           do not actually start Flume, just print the command
+  --plugins-path <dirs> colon-separated list of plugins.d directories. See the
+                        plugins.d section in the user guide for more details.
+                        Default: $FLUME_HOME/plugins.d
+  -Dproperty=value      sets a Java system property value
+  -Xproperty=value      sets a Java -X option
+
+agent options:
+  --conf-file,-f <file> specify a config file (required)
+  --name,-n <name>      the name of this agent (required)
+  --help,-h             display help text
+
+avro-client options:
+  --rpcProps,-P <file>   RPC client properties file with server connection params
+  --host,-H <host>       hostname to which events will be sent
+  --port,-p <port>       port of the avro source
+  --dirname <dir>        directory to stream to avro source
+  --filename,-F <file>   text file to stream to avro source (default: std input)
+  --headerFile,-R <file> File containing event headers as key/value pairs on each new line
+  --help,-h              display help text
+
+  Either --rpcProps or both --host and --port must be specified.
+
+password options:
+  --outfile              The file in which encoded password is stored
+
+Note that if <conf> directory is specified, then it is always included first
+in the classpath.
+
+
+flume-ng version
+
+
+
+a1.sources = r1
+a1.sinks = k1
+a1.channels = c1
+
+# Describe/configure the source
+a1.sources.r1.type = netcat
+a1.sources.r1.bind = sandbox.hortonworks.com
+a1.sources.r1.port = 9362 -----4444
+
+# Describe the sink
+a1.sinks.k1.type = logger
+
+# Use a channel which buffers events in memory
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 1000
+a1.channels.c1.transactionCapacity = 100
+
+# Bind the source and sink to the channel
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
+
+flume-ng agent --name a1 --conf /root --conf-file /root/flume/example.conf
+
+------- Use EXE and log file -------------
+# Name the components on this agent
+a1.sources = r1
+a1.sinks = k1
+a1.channels = c1
+
+# Describe/configure the source
+a1.sources.r1.type = exec 
+a1.sources.r1.command = tail -F /root/pig/excite-small.log
+
+# Describe the sink
+a1.sinks.k1.type = hdfs
+a1.sinks.k1.hdfs.path = /user/root/flume
+a1.sinks.k1.hdfs.fileType = DataStream 
+
+# Use a channel which buffers events in memory
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 100
+a1.channels.c1.transactionCapacity = 1000
+
+# Bind the source and sink to the channel
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
+
+
+--- Data --------------
+Aslam,100000,male,29
+Husain,105000,male,32
+Rakesh,134000,male,39
+Ram,112000,female,35
+Vasant,129000,female,39
+Raj,123000,male,29
+
+--------------Write into HDFS folder ----------
+
+# Name the components on this agent
+a1.sources = r1
+a1.sinks = k1
+a1.channels = c1
+
+# Describe/configure the source
+a1.sources.r1.type = netcat
+a1.sources.r1.bind = localhost
+a1.sources.r1.port = 44444 
+
+# Describe the sink
+a1.sinks.k1.type = hdfs
+a1.sinks.k1.hdfs.path = /apps/hive/warehouse/flume1
+a1.sinks.k1.hdfs.fileType = DataStream 
+
+# Use a channel which buffers events in memory
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 1000
+a1.channels.c1.transactionCapacity = 100
+
+# Bind the source and sink to the channel
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
+
+
+--------------Write into HDFS folder with filter ----------
+
+# Name the components on this agent
+a1.sources = r1
+a1.sinks = k1
+a1.channels = c1
+
+# Describe/configure the source
+a1.sources.r1.type = netcat
+a1.sources.r1.bind = localhost
+a1.sources.r1.port = 44444
+
+
+a1.sources.r1.interceptors = i1
+a1.sources.r1.interceptors.i1.type = regex_filter
+a1.sources.r1.interceptors.i1.regex = female
+a1.sources.r1.interceptors.i1.excludeEvents=true
+
+# Describe the sink
+a1.sinks.k1.type = hdfs
+a1.sinks.k1.hdfs.path = /apps/hive/warehouse/flume1
+a1.sinks.k1.hdfs.fileType = DataStream
+
+# Use a channel which buffers events in memory
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 1000
+a1.channels.c1.transactionCapacity = 100
+
+# Bind the source and sink to the channel
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
+
+------- Hive ---
+
+hive> CREATE TABLE `flume2`(
+    >   `name` string,
+    >   `salary` int,
+    >   `sex` string,
+    >   `age` int)
+    > clustered by (name) into 2 buckets
+    > ROW FORMAT DELIMITED
+    >   FIELDS TERMINATED BY ','
+    >    stored as orc
+    > tblproperties("transactional"="true");
+OK
+
+Table must have "transactional"="true" and orc
+
+flume-ng agent -name a1 --conf-file conf6.conf --classpath "/usr/hdp/2.5.0.0-1245/hive-hcatalog/share/hcatalog/*":"/usr/hdp/2.5.0.0-1245/hive/lib/*"
+
+# Name the components on this agent
+a1.sources = r1
+a1.sinks = k1
+a1.channels = c1
+
+# Describe/configure the source
+a1.sources.r1.type = netcat
+a1.sources.r1.bind = localhost
+a1.sources.r1.port = 44444
+
+# Describe the sink
+a1.sinks.k1.type = hive
+a1.sinks.k1.hive.metastore = thrift://sandbox.hortonworks.com:9083
+a1.sinks.k1.hive.database = default
+a1.sinks.k1.hive.table = flume2
+a1.sinks.k1.serializer = DELIMITED
+a1.sinks.k1.serializer.delimiter = ","
+a1.sinks.k1.serializer.fieldnames =name,salary,sex,age
+
+# Use a channel which buffers events in memory
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 1000
+a1.channels.c1.transactionCapacity = 100
+
+# Bind the source and sink to the channel
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
+
+

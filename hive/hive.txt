@@ -1,0 +1,864 @@
+http://hortonworks.com/apache/hive/#tutorials
+http://docs.hortonworks.com/HDPDocuments/HDP2/HDP-2.1.10/bk_installing_manually_book/content/rpm-chap1-11.html
+
+describe database extended gosales_bigdata;
+desc formatted sls_product_dim
+show create table sls_product_dim
+show partitions sls_sales_targ_fact;
+
+set hive.cli.print.current.db=true;
+set hive.cli.print.header=true;
+set fs.defaultFS;
+
+set hive.exec.dynamic.partition.mode=nonstrict;
+set hive.exec.dynamic.partition=true -- Need for partition
+hive.exec.dynamic.partition.mode=strict -- Need for partition
+hive.execution.engine=tez
+
+
+set hive.enforce.bucketing=true;
+
+compressed through deflate, hive
+SET hive.exec.compress.output=true;
+
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE
+TBLPROPERTIES("skip.header.line.count"="1");
+
+Conf file - /etc/hive/conf
+hadoop fs -rm -r -skipTrash  /apps/hive/warehouse/retail_stage.db
+
+hive --help
+To run local 
+hive> ! ls -l; >>>>> space between ! and ls needed.
+
+hive> dfs -help
+
+To run hdfs 
+hive > dfs -ls /user;
+>>>> Create database in default location - /apps/hive/warehouse
+hive > create database if not exists test1
+              > comment 'Just a test';
+
+hive >  describe database test1;
+OK
+test1   Just a test     hdfs://sandbox.hortonworks.com:8020/apps/hive/warehouse/test1.db        root    USER  --- default it gets creaated in /apps/hive/warehouse/test1.db  
+
+>>>> Create database in different location
+>>>> Location must be in hdfs. drop database will delete folders recursively.
+hive (default)> create database gosales_bigdata
+              > location '/user/sqlserver/gosales.db';
+
+describe database gosales_bigdata;
+describe database extended gosales_bigdata;
+
+Use gosales_bigdata;
+>> Managed Table -
+
+create table if not exists sls_product_dim (
+product_key int,
+product_line_code int,
+product_type_key int,
+product_type_code int,
+product_number int,
+base_product_key int,
+base_product_number int,
+product_color_code int,
+product_size_code int,
+product_brand_key int,
+product_brand_code int,
+product_image varchar(30),
+introduction_date timestamp,
+discontinued_date timestamp
+)
+comment 'Description of the table'
+row format delimited fields terminated by ','
+stored as textfile;
+
+desc  sls_product_dim;
+desc  extended sls_product_dim;
+desc formatted sls_product_dim;
+show create table sls_product_dim;
+show partitions sls_product_dim;
+
+Import data from SQL server using sqoop to hdfs - 
+>> Here files are sqoop to different folders than hive table folders - 
+
+sqoop import --connect 'jdbc:sqlserver://AVIANATEMP0813:1433;username=sa;password=********;database=gosalesdw' \
+--table sls_product_dim \
+--warehouse-dir /user/sqlserver/hive_stage \
+-- --schema gosalesdw
+
+hadoop fs -ls  /user/sqlserver/hive_stage/sls_product_dim 
+-rw-r--r--   1 root hdfs          0 2017-02-11 23:17 /user/sqlserver/hive_stage/sls_product_dim/_SUCCESS
+-rw-r--r--   1 root hdfs       5983 2017-02-11 23:17 /user/sqlserver/hive_stage/sls_product_dim/part-m-00000
+-rw-r--r--   1 root hdfs       6080 2017-02-11 23:17 /user/sqlserver/hive_stage/sls_product_dim/part-m-00001
+-rw-r--r--   1 root hdfs       6477 2017-02-11 23:17 /user/sqlserver/hive_stage/sls_product_dim/part-m-00002
+-rw-r--r--   1 root hdfs       6517 2017-02-11 23:17 /user/sqlserver/hive_stage/sls_product_dim/part-m-00003
+
+-- Loaded data from HDFS as APPEND. After load files will be deleted from source directory.
+
+LOAD DATA INPATH '/user/sqlserver/hive_stage/sls_product_dim' INTO TABLE sls_product_dim;
+
+One can load data from local (not hdfs). Here  the directoy '/root/sls_product_dim' is in local. Here it will OVERWRITE the target.
+LOAD DATA LOCAL INPATH '/root/sls_product_dim' INTO TABLE sls_product_dim;
+
+
+
+hadoop fs -ls  /user/sqlserver/hive_stage/sls_product_dim 
+-rw-r--r--   1 root hdfs          0 2017-02-11 23:17 /user/sqlserver/hive_stage/sls_product_dim/_SUCCESS
+
+So files moved from /user/sqlserver/hive_stage/sls_product_dim to 
+[root@sandbox ~]#  hadoop fs -ls  /user/sqlserver/gosales.db/sls_product_dim
+Found 4 items
+-rwxr-xr-x   1 root hdfs       5983 2017-02-11 23:17 /user/sqlserver/gosales.db/sls_product_dim/part-m-00000
+-rwxr-xr-x   1 root hdfs       6080 2017-02-11 23:17 /user/sqlserver/gosales.db/sls_product_dim/part-m-00001
+-rwxr-xr-x   1 root hdfs       6477 2017-02-11 23:17 /user/sqlserver/gosales.db/sls_product_dim/part-m-00002
+-rwxr-xr-x   1 root hdfs       6517 2017-02-11 23:17 /user/sqlserver/gosales.db/sls_product_dim/part-m-00003
+
+
+External Tables - 
+create external table friends (
+friend_key int,
+name varchar(30),
+age int,
+friend_count int)
+row format delimited fields terminated by ','
+stored as textfile
+location '/user/sqlserver/external_table_data/friends/';
+
+create table if not exists incr_test 
+(id int, 
+name varchar(10), 
+insert_date timestamp, 
+update_date timestamp)
+comment 'Description of the table'
+row format delimited fields terminated by ','
+stored as textfile;
+
+sqoop file to hive directory -  
+Here the issue is count(*) will show 0 but the select with limit will show data. The reason is limit uses hdfs library to show data 
+not map reduce which uses hive metadata table.
+
+Once loaded using LOAD DATA then it works from going forward.
+
+sqoop import --connect 'jdbc:sqlserver://AVIANATEMP0813:1433;username=sa;password=Aviana9946;database=HADOOP' \
+--table incr_test \
+--append \
+--warehouse-dir /user/sqlserver/gosales.db
+
+hive (gosales_bigdata)> select * from incr_test limit 10;
+OK
+1       TEST1   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+2       TEST2   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+3       TEST3   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+4       TEST4   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+5       TEST5   2017-02-11 15:50:02.113 2017-02-11 15:50:02.113
+Time taken: 0.156 seconds, Fetched: 5 row(s)
+hive (gosales_bigdata)> select count(*) from incr_test;
+OK
+0
+Time taken: 0.094 seconds, Fetched: 1 row(s)
+
+LOAD DATA INPATH '/user/sqlserver/gosales.db/incr_test' INTO TABLE incr_test;
+
+hive (gosales_bigdata)> select count(*) from incr_test;
+Query ID = root_20170211235739_19e9b1d6-4de2-435d-8e67-c97064702e81
+Total jobs = 1
+Launching Job 1 out of 1
+Tez session was closed. Reopening...
+Session re-established.
+
+
+Status: Running (Executing on YARN cluster with App id application_1486844485478_0013)
+
+--------------------------------------------------------------------------------
+        VERTICES      STATUS  TOTAL  COMPLETED  RUNNING  PENDING  FAILED  KILLED
+--------------------------------------------------------------------------------
+Map 1 ..........   SUCCEEDED      1          1        0        0       0       0
+Reducer 2 ......   SUCCEEDED      1          1        0        0       0       0
+--------------------------------------------------------------------------------
+VERTICES: 02/02  [==========================>>] 100%  ELAPSED TIME: 7.83 s
+--------------------------------------------------------------------------------
+OK
+5
+Time taken: 18.487 seconds, Fetched: 1 row(s)
+
+--- Avro
+sqoop import -Dmapreduce.job.user.classpath.first=true --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--target-dir=/user/sqlserver/external_table_data/customers_avro \
+--delete-target-dir \
+--as-avrodatafile \
+--outdir /root/java_code_other
+
+
+--- External Table - 
+
+
+CREATE EXTERNAL TABLE customers
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
+STORED AS AVRO
+LOCATION '/user/sqlserver/external_table_data/customers_avro/'
+TBLPROPERTIES ('avro.schema.url'='/user/avro_def/customers.avsc');
+-- Custom input format - 
+
+CREATE EXTERNAL TABLE customers_custom
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
+STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat'
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
+LOCATION '/user/sqlserver/external_table_data/customers_avro/'
+TBLPROPERTIES ('avro.schema.url'='/user/avro_def/customers.avsc');
+
+Remove last column from customers.avsc then put the modified file to hdfs. It means one less column.
+In this case selecet worked in hive with one less column.
+
+-- Different field delimiter
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--query "select customer_id,customer_fname,customer_lname from customers where customer_id < 100 and \$CONDITIONS"  \
+--boundary-query "select 1, 100" \
+--fields-terminated-by '|' \
+--split-by customer_id \
+--delete-target-dir \
+--target-dir=/user/sqlserver/external_table_data/customers_delimit \
+--outdir /root/java_code_other;
+
+CREATE EXTERNAL TABLE customers_delimit
+( customer_id int,
+customer_fname varchar(45),
+customer_lname varchar(45)
+)
+row format delimited fields terminated by '|'
+stored as textfile
+location '/user/sqlserver/external_table_data/customers_delimit';
+
+sqoop import -Dmapreduce.job.user.classpath.first=true --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table orders \
+--target-dir=/user/sqlserver/hive_stage/orders_avro \
+--delete-target-dir \
+--driver com.mysql.jdbc.Driver \
+--as-avrodatafile \
+--outdir /root/java_code_other
+
+CREATE EXTERNAL TABLE orders_avro
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
+STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat'
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
+LOCATION '/user/sqlserver/hive_stage/orders_avro'
+TBLPROPERTIES ('avro.schema.url'='/user/avro_def/orders.avsc');
+
+select distinct substr(from_unixtime(cast(substr(order_date,1,10) as bigint)),1,7) from orders_avro limit 10;
+
+--- Partitions --------------
+
+CREATE TABLE orders (
+order_id int,
+order_date string,
+order_customer_id int,
+order_status string
+)
+PARTITIONED BY (order_month string)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '|'
+STORED AS TEXTFILE;
+
+select order_id, from_unixtime(cast(substr(order_date,1,10) as bigint)) order_date,
+order_customer_id, order_status, substr(from_unixtime(cast(substr(order_date,1,10) as bigint)),1,7) order_month
+from orders_avro limit 10;
+
+By default partition is restricted mode. so  one can insert data one partition a time 
+Dynamic partition strict mode requires at least one static partition column. To turn this off set hive.exec.dynamic.partition.mode=nonstrict
+
+For static case, we don't have to have the partition column in select list.
+
+insert into table orders
+partition (order_month='2013-07')
+select order_id, from_unixtime(cast(substr(order_date,1,10) as bigint)) order_date,
+order_customer_id, order_status
+from orders_avro where substr(from_unixtime(cast(substr(order_date,1,10) as bigint)),1,7) = '2013-07' ;
+
+To overwrite the existing partition - 
+
+insert OVERWRITE table orders
+partition (order_month='2013-07')
+select order_id, from_unixtime(cast(substr(order_date,1,10) as bigint)) order_date,
+order_customer_id, order_status
+from orders_avro where substr(from_unixtime(cast(substr(order_date,1,10) as bigint)),1,7) = '2013-07' ;
+
+To do auto partitions then partition mode must be nonstrict and last columns must be partition columns in sequence if multi column partition -
+
+set hive.exec.dynamic.partition.mode=nonstrict;
+
+insert into table orders
+partition (order_month)
+select order_id, from_unixtime(cast(substr(order_date,1,10) as bigint)) order_date,
+order_customer_id, order_status, substr(from_unixtime(cast(substr(order_date,1,10) as bigint)),1,7) order_month
+from orders_avro;
+
+
+Truncate table is not deleting the partition folders. But deleting the files in the folders.
+
+
+create table sls_sales_targ_fact_non_par(
+month_key int,
+organization_key int,
+rtl_country_key int,
+employee_key int,
+retailer_key int,
+product_type_key int,
+product_brand_key int,
+sales_target float
+)
+row format delimited fields terminated by ','
+stored as textfile;
+
+sqoop import --connect 'jdbc:sqlserver://AVIANATEMP0813:1433;username=sa;password=Aviana9946;database=gosalesdw' \
+--table sls_sales_targ_fact \
+--append \
+--target-dir /user/sqlserver/gosales.db/sls_sales_targ_fact_non_par \
+-- --schema gosalesdw
+
+LOAD DATA INPATH '/user/sqlserver/gosales.db/sls_sales_targ_fact_non_par' INTO TABLE sls_sales_targ_fact_non_par
+
+create table sls_sales_targ_fact(
+month_key int,
+employee_key int,
+retailer_key int,
+product_type_key int,
+product_brand_key int,
+sales_target float
+)
+partitioned by (rtl_country_key int, organization_key int)
+row format delimited fields terminated by ','
+stored as textfile;
+
+insert overwrite table sls_sales_targ_fact
+partition (rtl_country_key = 90001, organization_key = 11159)
+select month_key, employee_key,retailer_key,product_type_key, product_brand_key,sales_target
+from sls_sales_targ_fact_non_par where rtl_country_key = 90001 and organization_key = 11159;
+
+insert overwrite table sls_sales_targ_fact
+partition (rtl_country_key = 90001, organization_key = 11171)
+select month_key, employee_key,retailer_key,product_type_key, product_brand_key,sales_target
+from sls_sales_targ_fact_non_par where rtl_country_key = 90001 and organization_key = 11171;
+
+This will load all data into one partiotion (rtl_country_key = 90001, organization_key= 11160) so it is not right
+so directory must only partition data.
+
+LOAD DATA INPATH '/user/sqlserver/gosales.db/sls_sales_targ_fact_non_par' INTO TABLE sls_sales_targ_fact
+PARTITION (rtl_country_key = 90001, organization_key= 11160); 
+
+so drop this partition - 
+ALTER TABLE sls_sales_targ_fact DROP IF EXISTS PARTITION(rtl_country_key = 90001, organization_key= 11160);
+-
+Rerun sqoop for sls_sales_targ_fact_non_par because load data input moved files.
+--
+
+insert overwrite table sls_sales_targ_fact
+partition (rtl_country_key, organization_key)
+select month_key, employee_key,retailer_key,product_type_key, product_brand_key,sales_target,rtl_country_key, organization_key
+from sls_sales_targ_fact_non_par;
+
+File must have only one partition data what are being loaded otherwise it will load all data in one partition.
+LOAD DATA INPATH '/user/sqlserver/gosalesdw/XXXXX/' INTO TABLE sls_sales_targ_fact
+PARTITION (rtl_country_key = 90001, organization_key);
+
+set hive.exec.dynamic.partition.mode=strict;
+
+
+create table ctas_orders as select * from orders;
+ /user/sqlserver/gosales.db/ctas_orders/000000_0
+CTAS has these restrictions:
+
+    The target table cannot be a partitioned table.
+    The target table cannot be an external table.
+    The target table cannot be a list bucketing table.
+
+	Temp table name same as physical table --
+create temporary table ctas_orders as select * from ctas_orders limit 10;
+select count(*) from ctas_orders; -- gives the row count for temp table.
+drop table ctas_orders; -- drops the temp table.
+
+select count(*) from ctas_orders; not it give count of physical table.
+
+If partition is added manually by adding folders in hdfs then to update the metadata run - 
+[root@sandbox ~]# hadoop fs -ls /user/sqlserver/gosales.db/orders
+Found 13 items
+drwxr-xr-x   - root hdfs          0 2017-02-12 20:04 /user/sqlserver/gosales.db/orders/order_month=2013-07
+drwxr-xr-x   - root hdfs          0 2017-02-12 20:04 /user/sqlserver/gosales.db/orders/order_month=2013-08
+drwxr-xr-x   - root hdfs          0 2017-02-12 20:04 /user/sqlserver/gosales.db/orders/order_month=2013-09
+drwxr-xr-x   - root hdfs          0 2017-02-12 20:04 /user/sqlserver/gosales.db/orders/order_month=2013-10
+drwxr-xr-x   - root hdfs          0 2017-02-12 20:04 /user/sqlserver/gosales.db/orders/order_month=2013-11
+drwxr-xr-x   - root hdfs          0 2017-02-12 20:04 /user/sqlserver/gosales.db/orders/order_month=2013-12
+drwxr-xr-x   - root hdfs          0 2017-02-12 20:04 /user/sqlserver/gosales.db/orders/order_month=2014-01
+drwxr-xr-x   - root hdfs          0 2017-02-12 20:04 /user/sqlserver/gosales.db/orders/order_month=2014-02
+drwxr-xr-x   - root hdfs          0 2017-02-12 20:04 /user/sqlserver/gosales.db/orders/order_month=2014-03
+drwxr-xr-x   - root hdfs          0 2017-02-12 20:04 /user/sqlserver/gosales.db/orders/order_month=2014-04
+drwxr-xr-x   - root hdfs          0 2017-02-12 20:04 /user/sqlserver/gosales.db/orders/order_month=2014-05
+drwxr-xr-x   - root hdfs          0 2017-02-12 20:04 /user/sqlserver/gosales.db/orders/order_month=2014-06
+drwxr-xr-x   - root hdfs          0 2017-02-12 20:04 /user/sqlserver/gosales.db/orders/order_month=2014-07
+
+hive (gosales_bigdata)> show partitions orders;
+OK
+order_month=2013-07
+order_month=2013-08
+order_month=2013-09
+order_month=2013-10
+order_month=2013-11
+order_month=2013-12
+order_month=2014-01
+order_month=2014-02
+order_month=2014-03
+order_month=2014-04
+order_month=2014-05
+order_month=2014-06
+order_month=2014-07
+
+
+added manually -- hadoop fs -mkdir  /user/sqlserver/gosales.db/orders/order_month=2014-08
+doesn't show the new partiotions when run - show partitions orders;
+
+MSCK REPAIR TABLE orders;
+hive (gosales_bigdata)> MSCK REPAIR TABLE orders;
+OK
+Partitions not in metastore:    orders:order_month=2014-08
+Repair: Added partition to metastore orders:order_month=2014-08
+Time taken: 0.749 seconds, Fetched: 2 row(s)
+
+After this, it shows the new partitions.
+
+Index -- It doesn't work with TEZ
+set hive.execution.engine=mr
+hive (gosales_bigdata)> create index orders_avro_idx on table orders (order_date) as 'COMPACT';
+FAILED: Execution Error, return code 1 from org.apache.hadoop.hive.ql.exec.DDLTask. java.lang.RuntimeException: Please specify deferred rebuild using " W                                       ITH DEFERRED REBUILD ".
+hive (gosales_bigdata)> create index orders_avro_idx on table orders (order_date) as 'COMPACT' WITH DEFERRED REBUILD;
+OK
+Time taken: 0.322 seconds
+hive (gosales_bigdata)> alter index orders_avro_idx on  orders REBUILD;
+DROP INDEX IF EXISTS orders_avro_idx ON orders;
+
+show index on orders_avro;
+
+
+--Ignoring hearder line --------
+create table drivers
+(driverId int,
+ name string,
+ ssn bigint,
+ location string,
+ certified string,
+ wageplan string)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE
+TBLPROPERTIES("skip.header.line.count"="1");
+
+
+
+--- Bucket -------
+CREATE TABLE orders_par_bucket(
+order_id int,
+order_date string,
+order_customer_id int,
+order_status string
+)
+PARTITIONED BY (order_month string)
+CLUSTERED BY (order_id) INTO 16 BUCKETS
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '|'
+STORED AS TEXTFILE;
+
+set hive.enforce.bucketing=true;
+
+insert into table orders_par_bucket
+partition (order_month)
+select order_id, from_unixtime(cast(substr(order_date,1,10) as bigint)) order_date,
+order_customer_id, order_status, substr(from_unixtime(cast(substr(order_date,1,10) as bigint)),1,7) order_month
+from orders_avro;
+
+select * from orders_par_bucket  TABLESAMPLE(BUCKET 3 OUT OF 16) where order_month = '2014-07';
+
+-----------ORC -----------
+
+
+----- DML -----------------
+https://cwiki.apache.org/confluence/display/Hive/Hive+Transactions
+
+Pl. read the limitations.
+
+BEGIN, COMMIT, and ROLLBACK are not yet supported.  All language operations are auto-commit.
+Only ORC file format is supported in this first release. 
+By default transactions are configured to be off. -- hive.txn.manager=org.apache.hadoop.hive.ql.lockmgr.DbTxnManager (default)
+
+Tables must be bucketed to make use of these features.  <<<<<<<<<<<<<<<<<<<<<<
+
+Cannot update the bucketed column. <<<<<<<<<<<<<<<<<<<<
+
+Settings -
+hive.txn.manager=org.apache.hadoop.hive.ql.lockmgr.DbTxnManager  (default)
+hive.compactor.initiator.on=true (default)
+hive.compactor.worker.threads=0 (default) hive.compactor.worker.threads=2
+hive.support.concurrency=true (deafult)
+set hive.enforce.bucketing=false (default) set hive.enforce.bucketing=true;
+
+create table if not exists incr_test_transaction 
+(id int, 
+name varchar(10), 
+insert_date timestamp, 
+update_date timestamp)
+comment 'Transactions table'
+CLUSTERED BY (id) INTO 4 BUCKETS
+stored as orc
+tblproperties ('transactional'='true');
+
+
+hive (gosales_bigdata)> show create table incr_test_transaction;
+OK
+CREATE TABLE `incr_test_transaction`(
+  `id` int,
+  `name` varchar(10),
+  `insert_date` timestamp,
+  `update_date` timestamp)
+COMMENT 'Transactions table'
+CLUSTERED BY (
+  id)
+INTO 4 BUCKETS
+ROW FORMAT SERDE
+  'org.apache.hadoop.hive.ql.io.orc.OrcSerde'
+STORED AS INPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.orc.OrcInputFormat'
+OUTPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.orc.OrcOutputFormat'
+LOCATION
+  'hdfs://sandbox.hortonworks.com:8020/user/sqlserver/gosales.db/incr_test_transaction'
+TBLPROPERTIES (
+  'COLUMN_STATS_ACCURATE'='{\"BASIC_STATS\":\"true\"}',
+  'numFiles'='0',
+  'numRows'='0',
+  'rawDataSize'='0',
+  'totalSize'='0',
+  'transactional'='true',
+  'transient_lastDdlTime'='1487093001')
+  
+1       TEST1   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+1       TEST1   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+2       TEST2   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+2       TEST2   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+3       TEST3   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+3       TEST3   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+4       TEST4   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+4       TEST4   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+5       TEST5   2017-02-11 15:50:02.113 2017-02-11 15:50:02.113
+5       TEST5   2017-02-11 15:50:02.113 2017-02-11 15:50:02.113
+
+update incr_test_transaction set name = 'TEST11' where id = 1;
+
+1       TEST11  2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+1       TEST11  2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+2       TEST2   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+2       TEST2   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+3       TEST3   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+3       TEST3   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+4       TEST4   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+4       TEST4   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+5       TEST5   2017-02-11 15:50:02.113 2017-02-11 15:50:02.113
+5       TEST5   2017-02-11 15:50:02.113 2017-02-11 15:50:02.113
+
+hive (gosales_bigdata)> dfs -ls /user/sqlserver/gosales.db/incr_test_transaction/;
+Found 3 items
+drwxr-xr-x   - root hdfs          0 2017-02-14 17:32 /user/sqlserver/gosales.db/incr_test_transaction/.hive-staging_hive_2017-02-14_17-32-15_800_4784208307724258227-1
+drwxr-xr-x   - root hdfs          0 2017-02-14 17:28 /user/sqlserver/gosales.db/incr_test_transaction/delta_0000004_0000004
+drwxr-xr-x   - root hdfs          0 2017-02-14 17:32 /user/sqlserver/gosales.db/incr_test_transaction/delta_0000005_0000005
+
+ SHOW COMPACTIONS;
+ 
+ Set compaction options in TBLPROPERTIES at table level
+CREATE TABLE table_name (
+  id                int,
+  name              string
+)
+CLUSTERED BY (id) INTO 2 BUCKETS STORED AS ORC
+TBLPROPERTIES ("transactional"="true",
+  "compactor.mapreduce.map.memory.mb"="2048",     -- specify compaction map job properties
+  "compactorthreshold.hive.compactor.delta.num.threshold"="4",  -- trigger minor compaction if there are more than 4 delta directories
+  "compactorthreshold.hive.compactor.delta.pct.threshold"="0.5" -- trigger major compaction if the ratio of size of delta files to
+                                                                   -- size of base files is greater than 50%
+);
+
+create table if not exists incr_test_trans_compac
+(id int, 
+name varchar(10), 
+insert_date timestamp, 
+update_date timestamp)
+comment 'Transactions table'
+CLUSTERED BY (id) INTO 2 BUCKETS
+stored as orc
+TBLPROPERTIES ("transactional"="true",
+"compactor.mapreduce.map.memory.mb"="2048", 
+"compactorthreshold.hive.compactor.delta.num.threshold"="4",
+"compactorthreshold.hive.compactor.delta.pct.threshold"="0.5" 
+ );
+
+insert into incr_test_trans_compac select * from incr_test;
+
+update incr_test_trans_compac set name = 'TEST11' where id = 1;
+delete from incr_test_trans_compac where id = 2;
+delete from incr_test_trans_compac where id = 5;
+
+hive (gosales_bigdata)> SHOW COMPACTIONS;
+OK
+Database        Table   Partition       Type    State   Worker  Start Time
+gosales_bigdata incr_test_trans_compac  NULL    MAJOR   initiated       NULL    0
+Time taken: 0.04 seconds, Fetched: 2 row(s)
+
+-- Temp table --
+create temporary table friends_temp (
+friend_key int,
+name varchar(30),
+age int,
+friend_count int)
+row format delimited fields terminated by ','
+stored as textfile;
+
+LOAD DATA INPATH '/user/sqlserver/external_table_data/friends_temp' INTO TABLE friends_temp;
+This load removes the file from '/user/sqlserver/external_table_data/friends_temp' and put into
+/tmp/hive/root/eb9674e4-c011-4590-b9b0-adc42ca4b9bc/_tmp_space.db/c33d9c9e-d7d2-47c4-ac12-413deb083a10/friends.csv
+
+ create table friends_temp_orc stored as orc as select * from friends_temp;
+ 
+ --- Stats --
+ 
+set hive.compute.query.using.stats=true;
+set hive.stats.reliable=true;
+set hive.stats.fetch.column.stats=true;
+set hive.stats.fetch.partition.stats=true;
+set hive.cbo.enable=true;
+
+ANALYZE TABLE orders PARTITION(order_month) COMPUTE STATISTICS noscan;  --- With Partitions
+To see the stats for table with partitions - 
+DESCRIBE FORMATTED orders PARTITION(order_month='2013-07');
+Partition Parameters:
+        COLUMN_STATS_ACCURATE   {\"BASIC_STATS\":\"true\"}
+        numFiles                1
+        numRows                 1533
+        rawDataSize             60138
+        totalSize               61671
+        transient_lastDdlTime   1487197587
+
+
+
+-- gives all properties
+show tblproperties orders
+
+-- show just the raw data size
+show tblproperties orders("rawDataSize")
+
+LOAD DATA INPATH '/user/sqlserver/gosales.db/sls_sales_targ_fact_non_par' INTO TABLE sls_sales_targ_fact_non_par;
+ANALYZE TABLE sls_sales_targ_fact_non_par COMPUTE STATISTICS noscan;  --- WithOUT  Partitions
+DESCRIBE FORMATTED  sls_sales_targ_fact_non_par;
+Before Stats -
+	Table Type:             MANAGED_TABLE
+	Table Parameters:
+        numFiles                4
+        numRows                 0
+        rawDataSize             0
+        totalSize               10614522
+        transient_lastDdlTime   1486930342
+After Stats -
+Table Type:             MANAGED_TABLE
+Table Parameters:
+        COLUMN_STATS_ACCURATE   {\"BASIC_STATS\":\"true\"}
+        numFiles                4
+        numRows                 0
+        rawDataSize             0
+        totalSize               10614522
+        transient_lastDdlTime   1487198524
+		
+DESCRIBE FORMATTED  sls_sales_targ_fact_non_par;  without nocan then it gave the total row count.
+
+----------
+
+ hive -e "select * from gosales_bigdata.incr_test"
+ 
+[root@sandbox ~]# cat hive_script.sql
+set hive.cli.print.header=true;
+select * from gosales_bigdata.incr_test;
+
+hive -f /root/hive_script.sql --- this is from local file directory
+--Output 
+incr_test.id    incr_test.name  incr_test.insert_date   incr_test.update_date
+1       TEST1   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+2       TEST2   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+3       TEST3   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+4       TEST4   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+5       TEST5   2017-02-11 15:50:02.113 2017-02-11 15:50:02.113
+1       TEST1   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+2       TEST2   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+3       TEST3   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+4       TEST4   2017-02-11 15:50:02.11  2017-02-11 15:50:02.11
+5       TEST5   2017-02-11 15:50:02.113 2017-02-11 15:50:02.113
+
+
+hdfs 
+
+> hive -f hdfs://sandbox.hortonworks.com:8020/user/hive_script/hive_script.sql -- Worked
+ hive -f hdfs://sandbox.hortonworks.com:9000/user/hive_script/hive_script.sql --- Error -- Port Number is different
+
+
+Writing data into the filesystem from queries
+
+from gosales_bigdata.incr_test t1
+insert overwrite directory '/user/sqlserver/hive_stage/to_hdsf' select t1.id, t1.name,t1.insert_date, t1.update_date
+insert overwrite local directory '/root/to_hdsf' select t1.id, t1.name,t1.insert_date, t1.update_date;
+
+If directory is not there then it creates it.
+
+
+overwrite --- delete then write
+into --- append, This doesn't work with directory
+
+insert overwrite directory '/user/root/top5cat'  
+row format delimited fields terminated by ','
+stored as textfile
+select c.category_name, count(order_item_quantity) as count from order_items oi
+inner join products p on p.product_id = oi.order_item_product_id
+inner join categories c on c.category_id = p.product_category_id
+group by c.category_name order by count desc limit 5;
+
+
+
+CREATE TABLE raw (line STRING)
+   ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' LINES TERMINATED BY '\n';
+ 
+LOAD DATA LOCAL INPATH '/tmp/weblogs/20090603-access.log.gz' INTO TABLE raw;
+
+
+----
+
+create table users (fname string, lname string, course string, fee int, notdiscouted int)
+row format delimited
+fields terminated by '|'
+stored as textfile;
+
+load data local inpath '/root/hive/hiv01local.txt' into table users;
+---
+create external table user_external (fname string, lname string, course string, fee int, notdiscouted int)
+row format delimited
+fields terminated by '|'
+stored as textfile
+location '/user/root/hive01';
+
+---
+hive (hdp)> create table user_partition(fname string, lname string, course string, fee int, notdiscount int) partitioned by (order_year string)
+          > row format delimited
+          > fields terminated by '|'
+          > stored as textfile;
+
+		insert into table user_partition partition(order_year=2017)values('Amit', 'Jain', 'Hadoop', 3500, 3700);
+    		
+
+create table user_bucket(fname string, lname string, course string, fee int, notdiscount int) partitioned by (order_year string)
+clustered by (fee) into 4 buckets
+row format delimited
+fields terminated by '|'
+stored as textfile;
+
+create table user_bucketed(fname string, lname string, course string, fee int, notdiscount int) 
+clustered by (fee) into 4 buckets
+row format delimited
+fields terminated by '|'
+stored as textfile;
+
+INSERT into table
+INSERT overwrite table user_bucket   partition(order_year=2017)  VALUES 
+('Amit','Jain','Hadoop',3500,3700)
+, ('Lokesh','Kumar','Spark',3900,3500)
+,('Prahlad','Mishra','CCD575',3700,3800)
+,('Anil','Jain','Hadoop',3500,3700)
+,('Latika','Kumar','Spark',4000,3500)
+, ('Piyush','Mishra','CCD575',4500,3800)
+,('Avinash','Jain','Hadoop',5500,3700)
+,('Dimpy','Kumar','Spark',6500,3500)
+,('Prateek','Mishra','CCD575',2900,3800)
+,('Avinash','Jain','Hadoop',1,3700)
+,('Dimpy','Kumar','Spark',2,3500)
+,('Prateek','Mishra','3',2900,3800)
+,('Avinash','Jain','Hadoop',5500,3700)
+,('Dimpy','Kumar','Spark',6500,3500)
+,('Prateek','Mishra','CCD575',2900,3800)
+,('Avinash','Jain','Hadoop',4,3700)
+,('Dimpy','Kumar','Spark',5,3500)
+,('Prateek','Mishra','CCD575',6,3800);
+
+INSERT INTO hive_temp VALUES ('Amit,Jain') , ('Venkat,Sathya') , ('Vinod,Kumar') , ('Mike,Lavinson');
+INSERT INTO hive_temp VALUES ('Anup,Sinha') , ('Vipul,Garg') , ('Lavnya,Kumar') , ('John,Lavinson');
+
+select split(data,',')[0],split(data,',')[1]  from hive_temp;
+
+  
+-----
+ select customer_id, sum(order_item_quantity) as tot_qty, rank() over (order by sum(order_item_quantity)) as rnk from Order_items i inner join orders o on o.order_id =  i.order_item_order_id
+ inner join customers c on c.customer_id = o.order_customer_id group by customer_id;
+ 
+----
+ create database if not exists test
+ comment  'This is a test'
+ location '/user/root/test'
+ with DBPROPERTIES ('created_by'='Aslam', 'created_on'= '1st April 2017');
+ 
+ describe database extended test;
+test    This is a test  hdfs://sandbox.hortonworks.com:8020/user/root/test      root    USER    {created_by=Aslam, created_on=1st April 2017}
+
+
+
+
+-----
+create table complex(
+id bigint,
+cname struct<fname:string,lname:string>, 
+add struct<city:string, state:string>, 
+age array<int>, 
+feel map<string, boolean>) 
+row format delimited 
+fields terminated by '|' 
+collection items terminated by ',' 
+map keys terminated by ':' 
+lines terminated by '\n' 
+stored as textfile;
+
+1000000|mahesh,chimmiri|hyd,ap|40,41|happy:true,sad:false
+1000000|suresh,chimmili|ongl,ap|42,43|sad:true,happy:false
+1000000|xxxx,yyyy|ongl,ap|42,44|sad:true,happy:false
+
+load data local inpath '/root/cert/complex_data.txt' into table complex;
+select id,cname.fname, add.city, age[0],age[1], feel["happy"], feel["sad"], feel["xxxx"] from complex;
+
+create table patientinfo (name struct<fname:string, lname:string>, add struct<hno:string, area_name:string, city:string, zip:string>, phone struct<mobile:string, home:string>) row format                                        delimited fields terminated by '|' collection items terminated by ',' stored as textfile;
+
+Amit|Jain|A-646, Cheru Nagar, Chennai|999999999|98989898|600020
+Sumit|Saxena|D-100, Connaught Place, Delhi|1111111111|82828282|110001
+Ajit|Chaube|M-101, Dwarka puri, Jaipur|2222222222|32323232|302016
+Ramu|Mishra|P-101,Ahiyapur, Patna|4444444444|12121212|801108
+
+select split(data, '\\|')[0] FName, split(data, '\\|')[1] Lanme, split(split(data, '\\|')[2],',')[0] HNo, split(split(data, '\\|')[2],',')[1] addname, split(split(data, '\\|')[2],',')[2] City,  
+split(data, '\\|')[3] Mobile,
+split(data, '\\|')[4] Home,
+split(data, '\\|')[5] zip
+from temptable;
+
+select named_struct("fname", split(data, '\\|')[0], "lname", split(data, '\\|')[1]),
+named_struct("hno", split(split(data, '\\|')[2],',')[0], "area_name", split(split(data, '\\|')[2],',')[1], "city",split(split(data, '\\|')[2],',')[2] , "zip",split(data, '\\|')[5] ),
+named_struct("mobile", split(data, '\\|')[3], "home", split(data, '\\|')[4])
+from temptable;
+
+ insert into table patientinfo select named_struct("fname", split(data, '\\|')[0], "lname", split(data, '\\|')[1]),
+    > named_struct("hno", split(split(data, '\\|')[2],',')[0], "area_name", split(split(data, '\\|')[2],',')[1], "city",split(split(data, '\\|')[2],',')[2] , "zip",split(data, '\\|')[5] ),
+    > named_struct("mobile", split(data, '\\|')[3], "home", split(data, '\\|')[4])
+    > from temptable;
+
+
+hive> select split(data, ',')[0] from part_split;
+OK
+Amit
+Lokesh
+Prahlad
+Anil
+

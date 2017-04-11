@@ -1,0 +1,18 @@
+jdbc:hive2://192.168.253.138:10000/gosales_bigdata
+org.apache.hive.jdbc.HiveDriver
+com.simba.hive.jdbc4.HS2Driver
+com.simba.hive.jdbc4.HS1Driver
+
+Hortonworks Hive to Cognos – 
+ Tried multiple options with JDBC but it’s not working. It throws an error – 
+For HS2Driver - 
+http://avianatemp0813:9300/p2pd	 	JDBC / Dynamic	 	Failed 	 	XQE-JDB-0012 Could not load the driver "class com.simba.hive.jdbc4.HS2Driver" because it is not certified for use with this product.
+
+For HS1Driver - 
+ http://avianatemp0813:9300/p2pd	 	JDBC / Dynamic	 	Failed
+ 	XQE-DS-0006 Unable to logon to the data source.
+
+http://www-01.ibm.com/support/docview.wss?uid=swg21637053
+
+But SQL Developer can connect to Hive database by following links – (I tested it and worked)
+https://community.hortonworks.com/articles/1887/connect-oracle-sql-developer-to-hive.html

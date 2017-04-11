@@ -1,0 +1,23 @@
+ Using cores=4 memory=32GB disks=4 hbase=True
+ Profile: cores=4 memory=29696MB reserved=3GB usableMem=29GB disks=4
+ Num Container=8
+ Container Ram=3584MB
+ Used Ram=28GB
+ Unused Ram=3GB
+ yarn.scheduler.minimum-allocation-mb=3584
+ yarn.scheduler.maximum-allocation-mb=28672
+ yarn.nodemanager.resource.memory-mb=28672
+ mapreduce.map.memory.mb=3584
+ mapreduce.map.java.opts=-Xmx2560m
+ mapreduce.reduce.memory.mb=3584
+ mapreduce.reduce.java.opts=-Xmx2560m
+ 
+ mapreduce.task.io.sort.mb=1280
+ 
+ yarn.app.mapreduce.am.resource.mb=3584
+ yarn.app.mapreduce.am.command-opts=-Xmx2560m
+ tez.am.resource.memory.mb=3584
+ tez.am.java.opts=-Xmx2560m
+ hive.tez.container.size=3584
+ hive.tez.java.opts=-Xmx2560m
+ hive.auto.convert.join.noconditionaltask.size=805306000

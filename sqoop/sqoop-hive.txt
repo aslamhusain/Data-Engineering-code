@@ -1,0 +1,107 @@
+set hive.cli.print.current.db=true;
+
+Hive arguments:
+   --create-hive-table                         Fail if the target hive table exists
+   --hive-compute-stats                        Overwrite existing data in the Hive table
+   --hive-database <database-name>             Sets the database name to use when importing to hive
+   --hive-delims-replacement <arg>             Replace Hive record \0x01 and row delimiters (\n\r) from imported string fields with user-defined string
+   --hive-drop-import-delims                   Drop Hive record \0x01 and row delimiters (\n\r) from imported string fields
+   --hive-home <dir>                           Override $HIVE_HOME
+   --hive-import                               Import tables into Hive (Uses Hive's default delimiters if none are set.)
+   --hive-overwrite                            Overwrite existing data in  the Hive table
+   --hive-partition-key <partition-key>        Sets the partition key to use when importing to hive
+   --hive-partition-value <partition-value>    Sets the partition value to use when importing to hive
+   --hive-table <table-name>                   Sets the table name to use when importing to hive
+   --map-column-hive <arg>                     Override mapping for specific column to hive types.
+
+ 
+ It creates a staging table in your user hdsf directory (/user/root) before uploading to hive. So if the directory is already present then it will throw an error 
+   
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--hive-import \
+--hive-database retail_hive_import \
+--hive-table customers
+
+By default, this is append to exxisting data. if run the same multiple then data gets multiplied by that time in table. So to delete the target table then use    --hive-overwrite 
+
+Started Kafka services because it was throwing Kafka error.
+
+Above throws an  error that  hdfs://sandbox.hortonworks.com:8020/user/root/customers  if already exists  /user/root/customers
+
+This delete the intermedite directory - 
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--delete-target-dir \
+--hive-import \
+--hive-database retail_hive_import \
+--hive-table customers
+
+If mutiple hive then hive home need to set.
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--hive-import \
+--hive-home /usr/hdp/2.5.0.0-1245/hive \
+--hive-database retail_hive_import \
+--hive-table customers
+
+-- Overwrite data 
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--delete-target-dir \
+--hive-import \
+--hive-overwrite \
+--hive-database retail_hive_import \
+--hive-table customers
+
+--- To redeirect the log to file
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--delete-target-dir \
+--hive-import \
+--hive-overwrite \
+--hive-database retail_hive_import \
+--hive-table customers 2>>sqoop.log
+
+sqoop eval  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --query "SELECT max(customer_id) from customers" 2>/dev/null
+sqoop eval  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --query "SELECT max(customer_id) from customers" 2>/dev/null | grep "^|"
+sqoop eval  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --query "SELECT max(customer_id) from customers" 2>/dev/null | grep "^|" | grep -v max
+
+set -o vi --- Enable Vi Style Editing in BASH
+sqoop eval  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --query "SELECT max(customer_id) from customers" 2>/dev/null | grep "^|" | grep -v max | awk -F " " '{print $2}'
+ MAX_CUSTOMER_ID=`sqoop eval  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --query "SELECT max(customer_id) from customers" 2>/dev/null | grep "^|" | grep -v max | awk -F " " '{print $2}'`
+echo $MAX_CUSTOMER_ID
+set -o emacs ---Disable Vi Style Editing in BASH
+
+Table Parameters:
+        comment                 Imported by sqoop on 2017/02/19 19:09:10
+        numFiles                4
+        numRows                 0
+        rawDataSize             0
+        totalSize               953538
+        transient_lastDdlTime   1487534476
+
+		
+-- generate stats (didn't worked)
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--delete-target-dir \
+--hive-import \
+--hive-home /apps/hive/warehouse \
+--hive-overwrite \
+--hive-compute-stats \
+--hive-database retail_hive_import \
+--hive-table customers
+
+ANALYZE TABLE customers COMPUTE STATISTICS noscan;
+   
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--hive-home /apps/hive/warehouse \
+--hive-import \
+--hive-database retail_hive_import \
+--hive-table customers \
+--create-hive-table

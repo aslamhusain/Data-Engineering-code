@@ -18,10 +18,22 @@
 # sqoop version
 	Sqoop 1.4.6.2.5.0.0-1245
 
++---------------------+
+| Tables_in_retail_db |
++---------------------+
+| categories          |
+| customers           |
+| departments         |
+| order_items         |
+| orders              |
+| products            |
++---------------------+
 
 
 --- List databases ---
 sqoop list-databases --connect "jdbc:mysql://localhost:3306" --username root --password hadoop
+sqoop list-databases --connect "jdbc:mysql://localhost:3306" --username root --password hadoop >1 output.data 2>sqoop.log
+sqoop list-databases --connect "jdbc:mysql://localhost:3306" --username root --password hadoop >>1 output.data 2>>sqoop.log
 
 -- Password at console --
 sqoop list-databases --connect "jdbc:mysql://localhost:3306" --username root -P
@@ -54,22 +66,551 @@ hadoop
 
 sqoop --options-file option_file.property;
  
+To redirect log to file
+ 2>>sqoop.log
+ 2>/dev/null
  
 -- Eval ---  
 sqoop eval  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --query "SELECT * FROM customers limit 10";
 
+sqoop eval  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --query "SELECT count(*) from customers"  2>>sqoop.log
+sqoop eval  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --query "SELECT count(*) from customers" 2>/dev/null
+
+Can be used to insert/update data of source tables
+sqoop eval  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --query "update customers set customer_email = 'aslam@avianaglobal.com' where customer_id = 1";
+INSERT INTO customers VALUES (12436,'Aslam','Husain','XXXXXXXXX','XXXXXXXXX','6303 Heather Plaza','Brownsville','TX','78521')
+sqoop eval  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--query "INSERT INTO customers VALUES (12436,'Aslam','Husain','XXXXXXXXX','XXXXXXXXX','6303 Heather Plaza','Brownsville','TX','78521')";
+delete from customers where customer_id = 12436;
+sqoop eval  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --query "delete from customers where customer_id = 12436;"
+
 # sqoop help import
+hadoop fs -rm -r -skipTrash /user/mysql/retail_db
+hadoop fs -mkdir /user/mysql/retail_db
+
+-- Directory ----
+sqoop import  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--target-dir=/user/mysql/retail_db/customers;
+
+sqoop import  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--delete-target-dir \
+--target-dir=/user/mysql/retail_db/customers \
+--outdir /root/java_code_other;
+
+sqoop import  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--warehouse-dir=/user/mysql/retail_db
 
 
-MS SQL Server - 
-# sqoop import --connect 'jdbc:sqlserver://192.168.0.2:1433;username=sa;password=******;database=gosalesdw' --table sls_product_dim --warehouse-dir /user/sqlserver/gosalesdw -- --schema gosalesdw;
+
+-- File Format ---
+Default is text file - comma seperated 
+hadoop fs -cat /user/mysql/retail_db/customers/part-m* | wc -l
+12435
+
+-- Sequence file -- binary format -  key value pair - https://wiki.apache.org/hadoop/SequenceFile
+sqoop import  --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --table customers --delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other --as-sequencefile;
+hadoop fs -cat /user/mysql/retail_db/customers/part-m* | wc -l
+2224
+
+-- With Dates ------
+sqoop import -Dmapreduce.job.user.classpath.first=true --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table orders \
+--target-dir=/user/sqlserver/hive_stage/orders_avro \
+--delete-target-dir \
+--driver com.mysql.jdbc.Driver \
+--as-avrodatafile \
+--outdir /root/java_code_other
+
+
+
+-- Avrofile -- Binary format of jason. It will create metadata file in directory whhere command was executed.
+https://community.hortonworks.com/questions/60890/sqoop-import-to-avro-failing-which-jars-to-be-used.html
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --table customers --delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other --as-avrodatafile;
+
+This works for Avro - https://community.hortonworks.com/questions/60890/sqoop-import-to-avro-failing-which-jars-to-be-used.html
+
+sqoop import -Dmapreduce.job.user.classpath.first=true --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --table customers --delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other --as-avrodatafile;
+
+https://developer.ibm.com/hadoop/2015/11/10/use-parquet-tools-avro-tools-iop-4-1/
+java -jar avro-tools-1.7.7-IBM-21-hadoop2.jar tojson part-m-00000.avro
+
+-- parquetfile file
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD --table customers --delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other --as-parquetfile;
+
+--- --table, --columns and --where , --query
+With --query, must have $CONDITIONS and --split-by
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--columns "customer_id,customer_fname,customer_lname" \
+--where 1=1 \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other;
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--columns "customer_id,customer_fname,customer_lname" \
+--where "customer_id < 100" \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other;
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--query 'select customer_id,customer_fname,customer_lname from customers where customer_id < 100 and $CONDITIONS'  \
+--split-by customer_id \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other;
+
+If you are issuing the query wrapped with double quotes ("), you will have to use \$CONDITIONS instead of just $CONDITIONS to disallow your shell from treating it as a shell variable. For example, a double quoted query may look like: "SELECT * FROM x WHERE a='foo' AND \$CONDITIONS"
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--query "select customer_id,customer_fname,customer_lname from customers where customer_id < 100 and \$CONDITIONS"  \
+--split-by customer_id \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other;
+
+
+If no split-by then 
+--num-mappers 1
+-m 
+--autoreset-to-one-mapper
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--query "select customer_id,customer_fname,customer_lname from customers where customer_id < 100  and \$CONDITIONS"  \
+--num-mappers 1 \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other;
+
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--query "select customer_id,customer_fname,customer_lname from customers where customer_id < 100 and \$CONDITIONS"  \
+--boundary-query "select 1, 10000" \
+--split-by customer_id \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other;
+
+hadoop fs -cat /user/mysql/retail_db/customers/part-m* | wc -l
+99, But all in one file. Uneven distribution.
+
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--query "select customer_id,customer_fname,customer_lname from customers where customer_id < 100 and \$CONDITIONS"  \
+--boundary-query "select 1, 10" \
+--split-by customer_id \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other;
+
+hadoop fs -cat /user/mysql/retail_db/customers/part-m* | wc -l
+10, so boundary-query controling rows.
+
+-- append 11 to 100
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--query "select customer_id,customer_fname,customer_lname from customers where customer_id < 100 and \$CONDITIONS"  \
+--boundary-query "select 11, 100" \
+--split-by customer_id \
+--append \
+--target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other;
+
+hadoop fs -cat /user/mysql/retail_db/customers/part-m* | wc -l
+99
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--query "select customer_id,customer_fname,customer_lname from customers where customer_id < 100 and \$CONDITIONS"  \
+--boundary-query "select 1, 100" \
+--fields-terminated-by '¶' \
+--lines-terminated-by '\n' \
+--escaped-by \\  \
+--enclosed-by '\"' \
+--split-by customer_id \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other;
+
+"1"¶"Richard"¶"Hernandez"
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--query "select customer_id,customer_fname,customer_lname from customers where customer_id < 100 and \$CONDITIONS"  \
+--boundary-query "select 1, 100" \
+--fields-terminated-by '¶' \
+--lines-terminated-by '\n' \
+--escaped-by \\  \
+--optionally-enclosed-by '\"'  \
+--split-by customer_id \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other;
+
+1¶Richard¶Hernandez  -- If needed then only ""
+
+
+-- Validation is not supported for free from query but single table only.
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--columns "customer_id,customer_fname,customer_lname" \
+--boundary-query "select 1, 100" \
+--fields-terminated-by '¶' \
+--lines-terminated-by '\n' \
+--escaped-by \\  \
+--optionally-enclosed-by '\"'  \
+--split-by customer_id \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other \
+--validate;
+
+-- Works this case only. it failed with where conditions 
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other \
+--validate;
+
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other; 
+
+-z,--compress                                             Enable compression
+--compression-codec <codec>                               Compression codec to use for import
+/etc/hadoop/conf/core-site.xml  
+search for codec
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--compress \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other; 
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--compress \
+--compression-codec org.apache.hadoop.io.compress.SnappyCodec \
+--delete-target-dir --target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other; 
+
+
+[root@sandbox ~]# hadoop fs -ls /user/mysql/retail_db/customers
+Found 5 items
+-rw-r--r--   1 root hdfs          0 2017-02-08 23:33 /user/mysql/retail_db/customers/_SUCCESS
+-rw-r--r--   1 root hdfs     237145 2017-02-08 23:32 /user/mysql/retail_db/customers/part-m-00000
+-rw-r--r--   1 root hdfs     237965 2017-02-08 23:33 /user/mysql/retail_db/customers/part-m-00001
+-rw-r--r--   1 root hdfs     238092 2017-02-08 23:33 /user/mysql/retail_db/customers/part-m-00002
+-rw-r--r--   1 root hdfs     240323 2017-02-08 23:33 /user/mysql/retail_db/customers/part-m-00003
+[root@sandbox ~]# hadoop fs -ls /user/mysql/retail_db/customers
+Found 5 items
+-rw-r--r--   1 root hdfs          0 2017-02-09 00:55 /user/mysql/retail_db/customers/_SUCCESS
+-rw-r--r--   1 root hdfs      63937 2017-02-09 00:55 /user/mysql/retail_db/customers/part-m-00000.gz
+-rw-r--r--   1 root hdfs      63708 2017-02-09 00:55 /user/mysql/retail_db/customers/part-m-00001.gz
+-rw-r--r--   1 root hdfs      64171 2017-02-09 00:55 /user/mysql/retail_db/customers/part-m-00002.gz
+-rw-r--r--   1 root hdfs      63905 2017-02-09 00:55 /user/mysql/retail_db/customers/part-m-00003.gz
+[root@sandbox ~]# vi /etc/hadoop/conf/core-site.xml
+[root@sandbox ~]# hadoop fs -ls /user/mysql/retail_db/customers
+Found 5 items
+-rw-r--r--   1 root hdfs          0 2017-02-09 01:00 /user/mysql/retail_db/customers/_SUCCESS
+-rw-r--r--   1 root hdfs     104003 2017-02-09 01:00 /user/mysql/retail_db/customers/part-m-00000.snappy
+-rw-r--r--   1 root hdfs     103777 2017-02-09 01:00 /user/mysql/retail_db/customers/part-m-00001.snappy
+-rw-r--r--   1 root hdfs     104066 2017-02-09 01:00 /user/mysql/retail_db/customers/part-m-00002.snappy
+-rw-r--r--   1 root hdfs     103979 2017-02-09 01:00 /user/mysql/retail_db/customers/part-m-00003.snappy
+
+--- Incremental -
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--where "customer_id <= 100" \
+--delete-target-dir \
+--target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other; 
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--where "customer_id > 100 and customer_id <= 200" \
+--append \
+--target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other; 
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--check-column "customer_id" \
+--incremental append \
+--last-value 100 \
+--target-dir=/user/mysql/retail_db/customers \
+--outdir /root/java_code_other; 
+
+hadoop fs -rm -r -skipTrash  /user/mysql/retail_db/customers
+
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--table customers \
+--check-column "customer_id" \
+--incremental lastmodified \
+--last-value 200 \
+--target-dir=/user/mysql/retail_db/customers \
+--outdir /root/java_code_other; 
+
+sqoop job --create retail_customer_sqoop_job \
+-- import \
+--connect "jdbc:mysql://localhost:3306/retail_db" --username root --password hadoop \
+--table customers \
+--check-column "customer_id" \
+--incremental append \
+--last-value 200 \
+--target-dir=/user/mysql/retail_db/customers \
+--outdir /root/java_code_other; 
+
+  
+  usage: sqoop job [GENERIC-ARGS] [JOB-ARGS] [-- [<tool-name>] [TOOL-ARGS]]
+
+Job management arguments:
+   --create <job-id>            Create a new saved job
+   --delete <job-id>            Delete a saved job
+   --exec <job-id>              Run a saved job
+   --help                       Print usage instructions
+   --list                       List saved jobs
+   --meta-connect <jdbc-uri>    Specify JDBC connect string for the
+                                metastore
+   --show <job-id>              Show the parameters for a saved job
+   --verbose                    Print more information while working
+
+
+   
+-- No password prompt ---
+
+sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password-file /user/root/sqoop.password \
+--table customers \
+--where "customer_id > 0 and customer_id <= 200" \
+--append \
+--target-dir=/user/mysql/retail_db/customers --outdir /root/java_code_other; 
+ 
+ 
+sqoop job --create retail_customer_sqoop_job_pass_file \
+-- import \
+--connect "jdbc:mysql://localhost:3306/retail_db" --username root --password-file /user/root/sqoop.password \
+--table customers \
+--check-column "customer_id" \
+--incremental append \
+--last-value 200 \
+--target-dir=/user/mysql/retail_db/customers \
+--outdir /root/java_code_other; 
+
+sqoop job --show retail_customer_sqoop_job_pass_file
+sqoop job --exec retail_customer_sqoop_job_pass_file
+
+To modify any parameters value then --- --parametername value
+sqoop job --exec retail_customer_sqoop_job_pass_file  -- --last-value 12436 --- to reload the old data 
 
 
 
 
+-- MS SQL Server -- 
+create table incr_test (id int not null, name varchar(10), insert_date datetime, update_date datetime,
+constraint [pk_incr_test] primary key nonclustered 
+(
+	id asc
+)
+)
+
+INSERT INTO INCR_TEST VALUES(1, 'TEST1', GETDATE(), GETDATE())
+INSERT INTO INCR_TEST VALUES(2, 'TEST2', GETDATE(), GETDATE())
+INSERT INTO INCR_TEST VALUES(3, 'TEST3', GETDATE(), GETDATE())
+INSERT INTO INCR_TEST VALUES(4, 'TEST4', GETDATE(), GETDATE())
+INSERT INTO INCR_TEST VALUES(5, 'TEST5', GETDATE(), GETDATE())
+
+sqoop import --connect 'jdbc:sqlserver://AVIANATEMP0813:1433;username=sa;password=Aviana9946;database=HADOOP' \
+--table INCR_TEST \
+--target-dir /user/sqlserver/hadoop/incr_test \
+--check-column "UPDATE_DATE" \
+--incremental lastmodified \
+--last-value  1900-01-01;
+
+ hadoop fs -rm -r -skipTrash /user/sqlserver/hadoop/incr_test
+ 
+sqoop job --create sql_incr_test_sqoop_job_date_incr \
+-- import \
+--connect 'jdbc:sqlserver://AVIANATEMP0813:1433;username=sa;password=Aviana9946;database=HADOOP' \
+--table INCR_TEST \
+--target-dir /user/sqlserver/hadoop/incr_test \
+--check-column "UPDATE_DATE" \
+--append \
+--incremental lastmodified \
+--last-value  1900-01-01;
+
+INSERT INTO INCR_TEST VALUES(6, 'TEST6', GETDATE(), GETDATE())
+update INCR_TEST set NAME = 'TEST41',  UPDATE_DATE = GETDATE() WHERE ID = 4
+
+SELECT * FROM INCR_TEST
+
+[root@sandbox ~]#  hadoop fs -cat /user/sqlserver/hadoop/incr_test/part-m*
+1,TEST1,2017-02-09 22:31:49.817,2017-02-09 22:31:49.817
+2,TEST2,2017-02-09 22:31:49.817,2017-02-09 22:31:49.817
+3,TEST3,2017-02-09 22:31:49.817,2017-02-09 22:31:49.817
+4,TEST4,2017-02-09 22:31:49.817,2017-02-09 22:31:49.817
+5,TEST5,2017-02-09 22:31:49.817,2017-02-09 22:31:49.817
+[root@sandbox ~]#  hadoop fs -cat /user/sqlserver/hadoop/incr_test/part-m*
+1,TEST1,2017-02-09 22:31:49.817,2017-02-09 22:31:49.817
+2,TEST2,2017-02-09 22:31:49.817,2017-02-09 22:31:49.817
+3,TEST3,2017-02-09 22:31:49.817,2017-02-09 22:31:49.817
+4,TEST4,2017-02-09 22:31:49.817,2017-02-09 22:31:49.817
+5,TEST5,2017-02-09 22:31:49.817,2017-02-09 22:31:49.817
+4,TEST41,2017-02-09 22:31:49.817,2017-02-09 22:33:13.46
+6,TEST6,2017-02-09 22:33:13.46,2017-02-09 22:33:13.46
+
+--- Merge ---
+[root@sandbox ~]# hadoop fs -mkdir /user/sqlserver/hadoop/stage
+[root@sandbox ~]# hadoop fs -mkdir /user/sqlserver/hadoop/etl
+[root@sandbox ~]# hadoop fs -mkdir /user/sqlserver/hadoop/dm
+
+
+SELECT * FROM INCR_TEST
+
+truncate table INCR_TEST
+
+First load --
+
+sqoop import --connect 'jdbc:sqlserver://AVIANATEMP0813:1433;username=sa;password=Aviana9946;database=HADOOP' \
+--table INCR_TEST \
+--target-dir /user/sqlserver/hadoop/dm/incr_test \
+--check-column "UPDATE_DATE" \
+--incremental lastmodified \
+--last-value  1900-01-01;
+
+17/02/10 06:56:32 INFO tool.ImportTool:   --check-column UPDATE_DATE
+17/02/10 06:56:32 INFO tool.ImportTool:   --last-value 2017-02-09 22:54:01.4
+
+[root@sandbox ~]# hadoop fs -mkdir /user/sqlserver/hadoop/stage/incr_test_stg
+
+sqoop import --connect 'jdbc:sqlserver://AVIANATEMP0813:1433;username=sa;password=Aviana9946;database=HADOOP' \
+--table INCR_TEST \
+--target-dir /user/sqlserver/hadoop/stage/incr_test_stg \
+--append \
+--check-column "UPDATE_DATE" \
+--incremental lastmodified \
+--last-value  ' 2017-02-11 14:20:51.62';
+
+
+[root@sandbox ~]# hadoop fs -cat /user/sqlserver/hadoop/dm/incr_test/part-m*
+1,TEST1,2017-02-09 22:51:59.9,2017-02-09 22:51:59.9
+2,TEST2,2017-02-09 22:51:59.9,2017-02-09 22:51:59.9
+3,TEST3,2017-02-09 22:51:59.9,2017-02-09 22:51:59.9
+4,TEST4,2017-02-09 22:51:59.9,2017-02-09 22:51:59.9
+5,TEST5,2017-02-09 22:51:59.9,2017-02-09 22:51:59.9
+[root@sandbox ~]# hadoop fs -cat /user/sqlserver/hadoop/stage/incr_test_stg/part-m*
+4,TEST41,2017-02-09 22:51:59.9,2017-02-09 22:56:34.94
+6,TEST6,2017-02-09 22:56:34.94,2017-02-09 22:56:34.94
+
+hadoop fs -mkdir /user/sqlserver/hadoop/etl/incr_test_etl
+
+[root@sandbox ~]# hadoop fs -cat /user/sqlserver/hadoop/etl/incr_test_etl/part-m*
+
+1,TEST1,2017-02-09 22:51:59.9,2017-02-09 22:51:59.9
+2,TEST2,2017-02-09 22:51:59.9,2017-02-09 22:51:59.9
+3,TEST3,2017-02-09 22:51:59.9,2017-02-09 22:51:59.9
+4,TEST4,2017-02-09 22:51:59.9,2017-02-09 22:51:59.9
+5,TEST5,2017-02-09 22:51:59.9,2017-02-09 22:51:59.9
+
+--- Target directory must not exist
+hadoop fs -rm -r -skipTrash /user/sqlserver/hadoop/dm/incr_test
+
+--Merge --    >>>>> Column name is case sensative
+sqoop merge --merge-key ID \
+--new-data /user/sqlserver/hadoop/stage/incr_test_stg \
+--onto /user/sqlserver/hadoop/etl/incr_test_etl \
+--target-dir /user/sqlserver/hadoop/dm/incr_test \
+--class-name INCR_TEST \
+--jar-file  /tmp/sqoop-root/compile/c03cbce2c8ed4c06ccc2b775288deb41/INCR_TEST.jar
+
+[root@sandbox ~]# hadoop fs -ls /user/sqlserver/hadoop/dm/incr_test/
+Found 2 items
+-rw-r--r--   1 root hdfs          0 2017-02-10 07:32 /user/sqlserver/hadoop/dm/incr_test/_SUCCESS
+-rw-r--r--   1 root hdfs        337 2017-02-10 07:32 /user/sqlserver/hadoop/dm/incr_test/part-r-00000  >>>> Reducer, not mapper
+[root@sandbox ~]# hadoop fs -cat /user/sqlserver/hadoop/dm/incr_test/part-r*
+1,TEST1,2017-02-09 23:17:22.253,2017-02-09 23:17:22.253
+2,TEST2,2017-02-09 23:17:22.253,2017-02-09 23:17:22.253
+3,TEST3,2017-02-09 23:17:22.253,2017-02-09 23:17:22.253
+4,TEST41,2017-02-09 23:17:22.253,2017-02-09 23:20:13.417
+5,TEST5,2017-02-09 23:17:22.257,2017-02-09 23:17:22.257
+6,TEST6,2017-02-09 23:20:13.413,2017-02-09 23:20:13.413
+
+ hadoop fs -rm -skipTrash /user/sqlserver/hadoop/etl/incr_test_etl/part-m*
+ 
+ -- Sqoop Export ------
+ With Update key, it will update rows if there is any duplicates.
+ create table incr_test (id int NOT NULL PRIMARY KEY, name VARCHAR(10), insert_date datetime, update_date datetime);
+ 
+ --- All Inserts ---
+ sqoop export \
+ --connect "jdbc:mysql://localhost:3306/retail_db" --username root --password-file /user/root/sqoop.password \
+ --table incr_test \
+ --export-dir /user/sqlserver/gosales.db/incr_test \
+ --outdir /root/java_code_other 
+ 
+ --- All updates --
+  sqoop export \
+ --connect "jdbc:mysql://localhost:3306/retail_db" --username root --password-file /user/root/sqoop.password \
+ --table incr_test \
+ --export-dir /user/sqlserver/gosales.db/incr_test \
+ --outdir /root/java_code_other \
+ --update-key id
+ 
+ --sqoop-import-all-tables
+ ---- --delete-target-dir \ didn't work with all
+ 
+sqoop import-all-tables -Dmapreduce.job.user.classpath.first=true \
+--connect "jdbc:mysql://localhost:3306/retail_db" --username $USER --password $DB_PASSWORD \
+--driver com.mysql.jdbc.Driver \
+--exclude-tables incr_test,cust_inr \
+--as-avrodatafile \
+--compress \
+--compression-codec org.apache.hadoop.io.compress.SnappyCodec \
+--warehouse-dir /user/mysql/retail_db_all \
+--outdir /root/java_code_other
+
+ hadoop fs -rm -r -skipTrash /user/mysql/retail_db_all
+
+ A2. Importing into Hive with partitions
+To try this functionality out, I decided on gender as my partition criteria.
+
+
+mysql> select gender, count(*) from employees group by gender;  
++--------+----------+
+| gender | count(*) |
++--------+----------+
+| M      |   179973 |
+| F      |   120051 |
++--------+----------+
+
+Import gender="M"
+
+$ sqoop import \
+--connect jdbc:mysql://airawat-mySqlServer-node/employees \
+--username myUID \
+--password myPwd \
+--query 'select EMP_NO,birth_date,first_name,last_name,hire_date from employees where gender="M" AND $CONDITIONS'  \
+--direct \
+-m 6 \
+--split-by EMP_NO \
+--hive-import \
+--create-hive-table \
+--hive-table employees_import_parts \
+--target-dir /user/hive/warehouse/employee-parts \
+--hive-partition-key gender \
+--hive-partition-value 'M' \
+--enclosed-by '\"' \
+--fields-terminated-by , \
+--escaped-by \\ \
 
 
 
+Note 1: Gender column should not be included in the query.
+The two arguments (--hive-partition...) highlighted in yellow are required.
+Also, note that I have added a where clause to filter on just gender="M".
+
+
+Sqoop and dynamic partitioning in Hive
+Currently sqoop does not support dynamic partitioning in Hive in a single command.
+The partitions need to be inferred in one step, sqoop statement built and executed in next, iteratively for each partition inferred.
 
 
 
+But the same can be done using -hcatalog- as below ---
+
+hive> CREATE TABLE customers_partition(
+    >   customer_id int,
+    >   customer_fname string,
+    >   customer_lname string,
+    >   customer_email string,
+    >   customer_password string,
+    >   customer_street string,
+    >   customer_state string,
+    >   customer_zipcode string)
+    > partitioned by (customer_city string)
+    > ROW FORMAT DELIMITED
+    >   FIELDS TERMINATED BY ','
+    >   stored as textfile;
+
+ sqoop import --connect "jdbc:mysql://localhost:3306/retail_db" --username root --table customers --driver com.mysql.jdbc.Driver --hcatalog-database retail_db --hcatalog-table customers_partition

@@ -5,13 +5,28 @@ Download Microsoft JDBC Driver 6.0 for SQL Server from - https://www.microsoft.c
 HortonWorks - 
 cp sqljdbc41.jar /usr/hdp/2.5.0.0-1245/sqoop/lib/sqljdbc41.jar
 
+nc localhost 3306
+or telnet localhost 3306
+
 mysql -u root -p
 mysql> create database retail_db;
 mysql> use retail_db;
+---- Create tables and insert data 
 mysql> source retail_db.sql;
 mysql> show tables;
+select database(); -- to show connected database
+select user(); -- to show connected user
+show processlist;
+show status;
 
 
+mysql> use mysql;
+mysql> update user set password=PASSWORD("hadoop") where User='root';
+mysql> flush privileges;
+mysql> quit
+
+
+ ALTER TABLE categories MODIFY category_department_id INT;
 
 
 

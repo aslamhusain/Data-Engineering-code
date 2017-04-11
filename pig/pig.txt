@@ -1,0 +1,599 @@
+[root@sandbox ~]# pig -help
+
+Apache Pig version 0.16.0.2.5.0.0-1245 (rexported)
+compiled Aug 26 2016, 02:07:35
+
+USAGE: Pig [options] [-] : Run interactively in grunt shell.
+       Pig [options] -e[xecute] cmd [cmd ...] : Run cmd(s).
+       Pig [options] [-f[ile]] file : Run cmds found in file.
+  options include:
+    -4, -log4jconf - Log4j configuration file, overrides log conf
+    -b, -brief - Brief logging (no timestamps)
+    -c, -check - Syntax check
+    -d, -debug - Debug level, INFO is default
+    -e, -execute - Commands to execute (within quotes)
+    -f, -file - Path to the script to execute
+    -g, -embedded - ScriptEngine classname or keyword for the ScriptEngine
+    -h, -help - Display this message. You can specify topic to get help for that topic.
+        properties is the only topic currently supported: -h properties.
+    -i, -version - Display version information
+    -l, -logfile - Path to client side log file; default is current working directory.
+    -m, -param_file - Path to the parameter file
+    -p, -param - Key value pair of the form param=val
+    -r, -dryrun - Produces script with substituted parameters. Script is not executed.
+    -t, -optimizer_off - Turn optimizations off. The following values are supported:
+            ConstantCalculator - Calculate constants at compile time
+            SplitFilter - Split filter conditions
+            PushUpFilter - Filter as early as possible
+            MergeFilter - Merge filter conditions
+            PushDownForeachFlatten - Join or explode as late as possible
+            LimitOptimizer - Limit as early as possible
+            ColumnMapKeyPrune - Remove unused data
+            AddForEach - Add ForEach to remove unneeded columns
+            MergeForEach - Merge adjacent ForEach
+            GroupByConstParallelSetter - Force parallel 1 for "group all" statement
+            PartitionFilterOptimizer - Pushdown partition filter conditions to loader implementing LoadMetaData
+            PredicatePushdownOptimizer - Pushdown filter predicates to loader implementing LoadPredicatePushDown
+            All - Disable all optimizations
+        All optimizations listed here are enabled by default. Optimization values are case insensitive.
+    -v, -verbose - Print all error messages to screen
+    -w, -warning - Turn warning logging on; also turns warning aggregation off
+    -x, -exectype - Set execution mode: local|mapreduce|tez, default is mapreduce.
+    -F, -stop_on_failure - Aborts execution on the first failed job; default is off
+    -M, -no_multiquery - Turn multiquery optimization off; default is on
+    -N, -no_fetch - Turn fetch optimization off; default is on
+    -P, -propertyFile - Path to property file
+    -printCmdDebug - Overrides anything else and prints the actual command used to run Pig, including
+                     any environment variables that are set by the pig command.
+grunt> help
+Commands:
+<pig latin statement>; - See the PigLatin manual for details: http://hadoop.apache.org/pig
+File system commands:
+    fs <fs arguments> - Equivalent to Hadoop dfs command: http://hadoop.apache.org/common/docs/current/hdfs_shell.html
+Diagnostic commands:
+    describe <alias>[::<alias] - Show the schema for the alias. Inner aliases can be described as A::B.
+    explain [-script <pigscript>] [-out <path>] [-brief] [-dot|-xml] [-param <param_name>=<param_value>]
+        [-param_file <file_name>] [<alias>] - Show the execution plan to compute the alias or for entire script.
+        -script - Explain the entire script.
+        -out - Store the output into directory rather than print to stdout.
+        -brief - Don't expand nested plans (presenting a smaller graph for overview).
+        -dot - Generate the output in .dot format. Default is text format.
+        -xml - Generate the output in .xml format. Default is text format.
+        -param <param_name - See parameter substitution for details.
+        -param_file <file_name> - See parameter substitution for details.
+        alias - Alias to explain.
+    dump <alias> - Compute the alias and writes the results to stdout.
+Utility Commands:
+    exec [-param <param_name>=param_value] [-param_file <file_name>] <script> -
+        Execute the script with access to grunt environment including aliases.
+        -param <param_name - See parameter substitution for details.
+        -param_file <file_name> - See parameter substitution for details.
+        script - Script to be executed.
+    run [-param <param_name>=param_value] [-param_file <file_name>] <script> -
+        Execute the script with access to grunt environment.
+        -param <param_name - See parameter substitution for details.
+        -param_file <file_name> - See parameter substitution for details.
+        script - Script to be executed.
+    sh  <shell command> - Invoke a shell command.
+    kill <job_id> - Kill the hadoop job specified by the hadoop job id.
+    set <key> <value> - Provide execution parameters to Pig. Keys and values are case sensitive.
+        The following keys are supported:
+        default_parallel - Script-level reduce parallelism. Basic input size heuristics used by default.
+        debug - Set debug on or off. Default is off.
+        job.name - Single-quoted name for jobs. Default is PigLatin:<script name>
+        job.priority - Priority for jobs. Values: very_low, low, normal, high, very_high. Default is normal
+        stream.skippath - String that contains the path. This is used by streaming.
+        any hadoop property.
+    help - Display this message.
+    history [-n] - Display the list statements in cache.
+        -n Hide line numbers.
+    quit - Quit the grunt shell.
+
+Relations, Bags, Tuples, Fields
+  -- http://pig.apache.org/docs/r0.16.0/basic.html
+Case Sensitivity
+   -- http://pig.apache.org/docs/r0.16.0/basic.html
+	It is good to type all PIG keyword in CAPS to avoid any issue.
+
+### Data Type ###
+Simple Types
+
+int - 			Signed 32-bit integer
+long - 			Signed 64-bit integer
+float - 		32-bit floating point
+double -		64-bit floating point
+chararray - 	Character array (string)
+bytearray - 	Byte array (blob)
+boolean - 		true/false (case insensitive)
+datetime - 		datetime	1970-01-01T00:00:00.000+00:00
+biginteger		Java BigInteger	2E+11
+bigdecimal		Java BigDecimal	33.45678332
+
+Complex Types
+tuple			An ordered set of fields.	(19,2)
+bag				An collection of tuples.	{(19,2), (18,1)}
+map				A set of key value pairs.	[open#apache]
+
+
+##1 - Load data -- Word Count ###
+-- Getting started
+load_data = LOAD '/user/root/pig_demo.txt'; --- hdfs folder
+DESCRIBE load_data;
+
+pig -x tez -l /root/pig/pig_logs  -- to log error in /root/pig/pig_logs
+
+pig -x local filename.txt -- This will read file from local system and write to local. In Single JVM. No parallel processing.
+Good for debugging and testing any issues.
+
+load_data = LOAD '/user/root/pig_demo.txt' AS (line:chararray)
+DESCRIBE load_data;
+
+load_data = LOAD '/user/root/pig_demo.txt' as (line:chararray);
+words = FOREACH load_data GENERATE FLATTEN(TOKENIZE(line)) as word;
+	describe words;
+	words: {word: chararray}
+word_groups = GROUP words BY word;
+	describe word_groups;
+	word_groups: {group: chararray,words: {(word: chararray)}}
+word_count = FOREACH word_groups GENERATE group, COUNT(words);
+	describe word_count;
+	word_count: {group: chararray,long}
+word_count = FOREACH word_groups GENERATE group, COUNT(words) as Tot_count;
+	describe word_count;
+	word_count: {group: chararray,Tot_count: long}
+dump word_count;
+
+## shortcuts ---
+aliases --- list all aliases
+    \d alias - shourtcut for DUMP operator. If alias is ignored last defined alias will be used.
+    \de alias - shourtcut for DESCRIBE operator. If alias is ignored last defined alias will be used.
+    \e alias - shourtcut for EXPLAIN operator. If alias is ignored last defined alias will be used.
+    \i alias - shourtcut for ILLUSTRATE operator. If alias is ignored last defined alias will be used.
+    \q - To quit grunt shell
+
+##2 - Load data --Filter Data ###
+
+grunt> ls  -- List all files from /user/root/  hdfs folder
+grunt> fs -ls
+Create a relation - say cities 
+
+cities_schema = load '/user/root/cities.txt' as (name:chararray, state:chararray, pop:int); --- With schema
+cities_no_schema = load '/user/root/cities.txt'; --- Without schema
+ 
+grunt> describe cities_no_schema;
+Schema for cities_no_schema unknown.
+grunt> cities_schema = load '/user/root/cities.txt' as (name:chararray, state:chararray, pop:int);
+grunt> describe cities_schema;
+cities_schema: {name: chararray,state: chararray,pop: int}
+ 
+ca_cities_schema = FILTER cities_schema by (state=='CA');
+describe ca_cities_schema
+aliases
+illustrate ca_cities_schema; 
+or
+\i  ca_cities_schema;
+
+##3 - Load data --ORDER Data ###
+
+order_cities = ORDER cities_schema BY pop DESC;
+top5_cities = limit order_cities 5;
+
+##4 - Load data --Join Data then store data in HDFS , pl. see ##14 for mutltipe options for store ###
+cities_schema = load '/user/root/cities.txt' as (name:chararray, state:chararray, pop:int);
+states_schema = load '/user/root/states.txt' as (rank:int, code:chararray, fullname:chararray, date_entered:chararray, year_entered:int);
+cities_join_states = JOIN cities_schema by state, states_schema by code;
+
+LEFT OUTER -- cities_join_states = JOIN cities_schema by state LEFT OUTER, states_schema by code;
+RIGHT OUTER -- cities_join_states = JOIN cities_schema by state RIGHT OUTER, states_schema by code;
+FULL OUTER -- cities_join_states = JOIN cities_schema by state FULL OUTER, states_schema by code;
+
+Join in the reducers side -  USING 'replicated' -- cities_join_states = JOIN cities_schema by state, states_schema by code USING 'replicated';
+
+
+-- # our joined dataset will have 7 columns
+-- # Las Vegas  NV	     558383    36	NV	Nevada	31-OCT	1864
+-- # to clean it up use foreach generate
+
+grunt> describe cities_join_states;
+cities_join_states: {cities_schema::name: chararray,cities_schema::state: chararray,cities_schema::pop: int,states_schema::rank: int,states_schema::code: chararray,states_schema::fullname: chararray,states_schema::date_entered: chararray,states_schema::year_entered: int}
+
+cities_state = FOREACH cities_join_states GENERATE cities_schema::name, cities_schema::state, states_schema::fullname, states_schema::date_entered, cities_schema::pop;
+
+store cities_state into '/user/root/pig/cities_state';  -- In folder /user/root/pig/cities_state/part-r-00000
+
+-- # note that the join followed by the generate
+-- # can be written in a single statement
+-- # cities_join_states_short = FOREACH (join cities_schema by state, states_schema by code) GENERATE cities_schema::name,states_schema::fullname;
+
+cities_join_states_short = FOREACH (join cities_schema by state, states_schema by code) GENERATE cities_schema::name,states_schema::fullname;
+
+##5 - Load data --Transformation  and ROUND to 2 decimal place ###
+cities_schema = load '/user/root/cities.txt' as (name:chararray, state:chararray, pop:int);
+-- # adjust populations by 1.15
+cities_transform = foreach cities_schema generate name, state, pop * 1.15;
+
+cities_transform = foreach cities_schema generate name, state,pop*1.15, ROUND(pop * 1.15) as Adjsut_pop;  ----> ROUND must be in CAPS
+---------------------------------------------------------------------------------
+| cities_schema     | name:chararray      | state:chararray      | pop:int      |
+---------------------------------------------------------------------------------
+|                   | Waterbury           | CT                   | 107037       |
+---------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+| cities_transform     | name:chararray      | state:chararray      | :double            | Adjsut_pop:long      |
+-----------------------------------------------------------------------------------------------------------------
+|                      | Waterbury           | CT                   | 123092.54999999999 | 123093               |
+-----------------------------------------------------------------------------------------------------------------
+
+cities_transform = foreach cities_schema generate name, state,pop*1.15, ROUND(pop * 1.15*100f)/100f as Adjsut_pop;
+---------------------------------------------------------------------------------
+| cities_schema     | name:chararray      | state:chararray      | pop:int      |
+---------------------------------------------------------------------------------
+|                   | Evanston            | IL                   | 77693        |
+---------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+| cities_transform     | name:chararray      | state:chararray      | :double      | Adjsut_pop:float      |
+------------------------------------------------------------------------------------------------------------
+|                      | Evanston            | IL                   | 89346.95     | 89346.95              |
+------------------------------------------------------------------------------------------------------------
+
+cities_transform = foreach cities_schema generate name, state,pop*1.15, ROUND_TO(pop * 1.15, 2) as Adjsut_pop;
+
+
+##6 - Load data -- Projections   ###
+
+cities = load '/user/root/cities.txt' as (name:chararray, state:chararray, pop:int);
+cities_two_columns = FOREACH cities GENERATE name, state, CurrentTime() as DateTime;
+
+##7 - Load data -- Group By   ###
+grunt> cities = load '/user/root/cities.txt' as (name:chararray, state:chararray, pop:int);
+grunt> state_group = GROUP cities BY state;
+
+grunt> describe state_group;
+state_group: {group: chararray,cities: {(name: chararray,state: chararray,pop: int)}}
+
+grunt> city_count = FOREACH state_group GENERATE group, COUNT(cities) as Total_Count;
+grunt> state_pop = FOREACH state_group GENERATE group, SUM(cities.pop) as State_pop;
+
+state_three = limit state_group 3;
+dump state_three;
+   
+##8 - Load data -- Parallel  ###  Specify the number of reduce tasks for a Pig MapReduce job
+
+Parallel while loading the file is determined by size of the file. Framework does this work.
+But allow to increase the reducer - using parallel.
+-- Two options to set the parallel
+Use the set default parallel command to set the number of reducers at the script level.
+Use the PARALLEL clause to set the number of reducers at the operator level. 
+
+SET default_parallel 4;
+
+cities = load '/user/root/cities.txt' as (name:chararray, state:chararray, pop:int);
+state_group = GROUP cities BY state parallel 3;  -- This will create three files otherwise only 1 file
+store state_group into '/user/root/pig/state_group';
+state_pop = FOREACH state_group GENERATE group, SUM(cities.pop) as State_pop parallel 3;
+store state_pop into '/user/root/pig/state_pop'; -- This will create three files otherwise only 1 file
+ 
+
+##9 - Hive and Pig ####
+
+pig -useHCatalog
+grunt> sql show databases;
+grunt> sql show tables;   --- Only from defaults database
+grunt> sql use gosales_bigdata;
+
+friends = load 'gosales_bigdata.friends' USING org.apache.hive.hcatalog.pig.HCatLoader();
+\i friends;
+
+customer_details = LOAD 'xademo.customer_details' USING org.apache.hive.hcatalog.pig.HCatLoader();
+DESCRIBE customer_details
+customer_details_phone_number = FOREACH customer_details GENERATE phone_number;
+customer_details_phone_number_limit = LIMIT customer_details_phone_number 10;
+DUMP customer_details_phone_number_limit;
+
+* Without Schema 
+customer_details_wo_schema = LOAD '/apps/hive/warehouse/xademo.db/customer_details' USING PigStorage('|');
+customer_details_not_null = FILTER customer_details_wo_schema BY ($5 is not null);
+DUMP customer_details_not_null;
+
+customer_details_schema = LOAD '/apps/hive/warehouse/xademo.db/customer_details' USING PigStorage('|') AS (phone_number:chararray, plan:chararray, rec_date:chararray, status:chararray, balance:chararray, imei:chararray, region:chararray)
+
+* Remove NULL value
+custome_no_null = FILTER customer_details BY balance IS NOT NULL;
+
+* GROUP ALL (select count(*) from xademo.customer_details)
+customer_details = LOAD 'xademo.customer_details' USING org.apache.hive.hcatalog.pig.HCatLoader();
+customet_group = GROUP customer_details ALL;
+customet_group_count = FOREACH customet_group GENERATE group, COUNT(customer_details) as row_count;
+customet_group_count1 = FOREACH customet_group GENERATE COUNT_STAR(customer_details) as row_count;
+
+
+##10 - Create Hive Table the load using Pig ####
+Created a table in hive 
+create table state_pop (state varchar(10), total_pop bigint);
+
+cities = load '/user/root/cities.txt' as (name:chararray, state:chararray, pop:int);
+state_group = GROUP cities BY state;
+state_pop = FOREACH state_group GENERATE group as (state:chararray), SUM(cities.pop) as (total_pop:long);
+store state_pop into 'gosales_bigdata.state_pop' USING org.apache.hive.hcatalog.pig.HCatStorer();
+
+##11 - Filters and Parameters ####
+cities = load '/user/root/cities.txt' as (name:chararray, state:chararray, pop:int);
+ca_cities = FILTER cities BY (state=='CA');
+ca_cities_small = FILTER ca_cities BY (pop < 200000);
+
+Parameterized the state and pop -
+%default state 'CA';
+%default popultaion 250000;
+cities = load '/user/root/cities.txt' as (name:chararray, state:chararray, pop:int);
+selected_cities = FILTER cities BY (state=='$state');
+selected_cities_small = FILTER selected_cities BY (pop < $popultaion);
+
+Create a file param.pig
+cities = load '/user/root/cities.txt' as (name:chararray, state:chararray, pop:int);
+selected_cities = FILTER cities BY (state=='$state');
+selected_cities_small = FILTER selected_cities BY (pop < $popultaion);
+dump selected_cities_small;
+
+pig -f param.pig -param state=OH -param popultaion=500000;
+
+pig -x local -f param.pig -param state=OH -param popultaion=500000;
+
+-- Dry Run -- This case it will create pig file with substituated param value
+pig -f param.pig -param state=OH -param popultaion=500000 -dryrun
+  This create a file param.pig.substituted with param value.
+  
+One can put the default value if parameter is not supplied at run time
+%default state 'CA';
+%default popultaion 250000;
+cities = load '/user/root/cities.txt' as (name:chararray, state:chararray, pop:int);
+selected_cities = FILTER cities BY (state=='$state');
+selected_cities_small = FILTER selected_cities BY (pop < $popultaion);
+ 
+##12 -- Running script file ####
+
+pig -x local -f script.pig  -- script file and data file is in local
+
+pig -f script.pig  -- script file is in local but the data file in hdfs
+
+pig
+grunt> run script.pig -- script file is in local but the data file in hdfs
+
+##13 -- Witout Schema and data conversion ####
+
+cities = load '/user/root/cities.txt' USING PigStorage();
+cities_state = FOREACH cities GENERATE $0;
+
+*** Apply filter or transformation after casting data type otherwise weired error message.
+
+ca_citites = FILTER cities BY ((chararray)$1 == 'CA');
+ca_citites_small = FILTER ca_citites BY ((int)$2 < 100000);
+ca_citites_small_mul = FOREACH ca_citites_small GENERATE (chararray)$0 AS city, (chararray)$1 AS state, (int)$2 AS pop;
+ca_citites_small_mul = FOREACH ca_citites_small GENERATE $0 AS chararray)$0 AS city, (chararray)$1 AS state,((int)$2)*1.15 AS (adjust_pop:float);
+ca_citites_small_mul = FOREACH ca_citites_small GENERATE chararray)$0 AS city, (chararray)$1 AS state,ROUND_TO(((int)$2)*1.15,2) AS (adjust_pop:float);
+
+
+Other -
+cities = load '/user/root/cities.txt' USING PigStorage() as (name,state,pop);
+ city_with_data_type = FOREACH cities GENERATE (chararray)name, (chararray)state, (int)pop:
+ 
+cities = load '/user/root/cities.txt' USING PigStorage();  ---
+citites_schema = FOREACH cities GENERATE (chararray)$0 AS city, (chararray)$1 AS state, (int)$2 AS pop;
+ca_citites = FILTER citites_schema BY (state=='CA');
+
+##14 Store options #####
+customer_details_schema = LOAD '/apps/hive/warehouse/xademo.db/customer_details' USING PigStorage('|') AS (phone_number:chararray, plan:chararray, rec_date:chararray, status:chararray, balance:chararray, imei:chararray, region:chararray);
+This write data in tab delimiter format because PigStorage is default storage with '\t' delimiter 
+store customer_details_schema into 'customer_details_schema'; --- Write into /user/root/customer_details_schema
+
+fs -rm -r -skipTrash /user/root/customer_details_schema;
+store customer_details_schema into 'customer_details_schema' USING PigStorage(); -- tab delimiter 
+store customer_details_schema into 'customer_details_schema' USING PigStorage(',') parallel 3; --- , delimiter and one file because there is no reducer
+store customer_details_schema into 'customer_details_schema' USING BinStorage('|');
+
+customer_details_bin = LOAD '/user/root/customer_details_schema' USING BinStorage('|');
+DUMP customer_details_bin; 
+
+store customer_details_schema into 'customer_details_schema' USING  AvroStorage();
+customer_details_avro = LOAD '/user/root/customer_details_schema' USING AvroStorage();
+DUMP customer_details_avro; 
+
+store customer_details_schema into 'customer_details_schema' using OrcStorage('-c SNAPPY');
+customer_details_orc = LOAD '/user/root/customer_details_schema' USING OrcStorage();
+DUMP customer_details_orc; 
+
+###15 Distinct ######
+select distinct region from xademo.customer_details
+#1 
+customer_details = LOAD 'xademo.customer_details' USING org.apache.hive.hcatalog.pig.HCatLoader();
+region_group= GROUP customer_details by region;
+distinct_region = FOREACH region_group GENERATE group as region;
+dump distinct_region;
+#2 
+region =  FOREACH customer_details GENERATE region;
+distinct_region1 = DISTINCT region;
+
+###16 User Defined Functions ####
+find / -name "*piggybank*.jar"
+/hadoop/yarn/local/filecache/14/pig.tar.gz/pig/lib/piggybank.jar
+/hadoop/yarn/local/filecache/14/pig.tar.gz/pig/contrib/piggybank/java/piggybank.jar
+/usr/hdp/2.5.0.0-1245/pig/piggybank.jar
+/usr/hdp/2.5.0.0-1245/pig/lib/piggybank.jar
+
+jar tvf /usr/hdp/2.5.0.0-1245/pig/piggybank.jar  -- This will list all classes
+
+grunt> REGISTER /usr/hdp/2.5.0.0-1245/pig/piggybank.jar;
+friends = load 'gosales_bigdata.friends' USING org.apache.hive.hcatalog.pig.HCatLoader();
+ org.apache.pig.piggybank.evaluation.string.UPPER.class
+ org.apache.pig.piggybank.evaluation.string.Reverse.class
+ f_name = FOREACH friends GENERATE name, org.apache.pig.piggybank.evaluation.string.UPPER(name) as u_name,  org.apache.pig.piggybank.evaluation.string.Reverse(name) as r_name;
+ (Nerys,NERYS,syreN)
+DEFINE Reverse org.apache.pig.piggybank.evaluation.string.Reverse;
+DEFINE UPPER org.apache.pig.piggybank.evaluation.string.UPPER;
+f_name_new = FOREACH friends GENERATE name,UPPER(name) as u_name, Reverse(name) as r_name;
+
+grunt> history
+1   customer_details = LOAD 'xademo.customer_details' USING org.apache.hive.hcatalog.pig.HCatLoader();
+2   friends = load 'gosales_bigdata.friends' USING org.apache.hive.hcatalog.pig.HCatLoader();
+3   f_name = FOREACH friends GENERATE name, org.apache.pig.piggybank.evaluation.string.UPPER(name) as u_name,  org.apache.pig.piggybank.evaluation.string.Reverse(name) as r_name;
+4   DEFINE Reverse  org.apache.pig.piggybank.evaluation.string.Reverse;
+5   DEFINE UPPER org.apache.pig.piggybank.evaluation.string.UPPER;
+6   f_name_new = FOREACH friends GENERATE name,UPPER(name) as u_name, Reverse(name) as r_name;
+
+
+###16 Execution Engine Tez ####
+pig -x tez -f filename.pig -useHCatalog
+
+vi /etc/pig/conf/pig.properties
+# Execution Mode. Local mode is much faster, but only suitable for small amounts
+# of data. Local mode interprets paths on the local file system; Mapreduce mode
+# on the HDFS. Read more under 'Execution Modes' within the Getting Started
+# documentation.
+#
+# * mapreduce (default): use the Hadoop cluster defined in your Hadoop config files
+# * local: use local mode
+# * tez: use Tez on Hadoop cluster
+# * tez_local: use Tez local mode
+#
+# exectype=mapreduce
+
+Pig -x LOCAL   -- this will give option to read file from local file system instead of hdfs
+
+###17
+data = LOAD '/user/root/pig3.txt' using PigStorage('|');
+first_name = FOREACH data GENERATE $0 as FName;
+first_name = FOREACH data GENERATE (chararray)$0 as FName;
+first_name = FOREACH data GENERATE (chararray)$0 as FName, (int)$3 as Fee;
+
+data = LOAD '/user/root/pig3.txt' using PigStorage('|') AS (fName:chararray, lName:chararray, sub:chararray, fee:int);
+first_fee = FOREACH data GENERATE fName, fee;
+
+###18
+data = LOAD '/user/root/pig4.txt' USING PigStorage(' ') as (fname:chararray, age:int, score:int);
+fgroup = GROUP data by fname;
+fgroup: {group: chararray,data: {(fname: chararray,age: int,score: int)}}
+
+--same result
+ftotal = FOREACH fgroup GENERATE group as FName, COUNT(data) as Total;
+ftotal = FOREACH fgroup GENERATE group as FName, COUNT(data.fname) as Total;
+
+
+ftotal = FOREACH fgroup GENERATE group as FName, SUM(data.age) as Total;
+ 
+data3 = FOREACH data GENERATE fname..score;
+
+###19
+1|aslam@aviana.com|(aslam,,husain)|{(hadoop_training),(spark_training),(apache_pig_training)}|[programming1#scala,programming2#python,programming3#java]
+2|salim@aviana.com|(md,salim,khan)|{(CCA175),(CCP575),(CCA500)}|[programming1#Java,programming2#Scala,programming3#Python]
+3|ramesh@aviana.com|(ramesh,,gurajapu)|{(hadoop_training),(apache_pig_training)}|[programming1#scala,programming2#python,programming3#java]
+4|husain@aviana.com|(husain,aslam,aslam)|{(hadoop_training),(apache_pig_training),(data_science_training)}|[programming1#scala,programming2#python,programming3#java]
+5|asad@aviana.com|(asad,aslam,hussain)|{(hadoop_training),(apache_pig_training),(data_science_training)}|[programming1#scala,programming2#python,programming3#java]
+cnam
+grunt> data = LOAD '/user/root/pig5.txt' using PigStorage('|') as (id:int, email:chararray, name:tuple(fname:chararray,mname:chararray,lname:chararray), course_list:bag{course:tuple(cname:chararray)},tech:map[chararray]);
+
+programming = FOREACH data GENERATE id, email, name.fname, name.lname, course_list.(cname),tech#'programming1';
+
+programming = FOREACH data GENERATE id, email, name.fname, name.lname, course_list.(cname),tech#'programming1', COUNT(course_list) as c_count;
+
+###20
+1   cust_table = LOAD 'xademo.customer_details' USING org.apache.hive.hcatalog.pig.HCatLoader();
+2   customer = FOREACH cust_table GENERATE phone_number, plan;
+3   grouped = GROUP customer BY plan;
+4   cust_cout = FOREACH grouped GENERATE group as plan, COUNT(customer) as c_count;
+5   STORE cust_cout INTO '/user/root/pig1' USING PigStorage(',');
+6   STORE cust_cout INTO '/user/root/pig2';
+7   STORE cust_cout INTO '/user/root/pig3' USING PigStorage(' ');
+
+###21
+1   cust_hive = LOAD 'retail_db.customers' using org.apache.hive.hcatalog.pig.HCatLoader();
+2   cust_file = LOAD '/apps/hive/warehouse/retail_db.db/customers' using PigStorage('') as (customer_id: int,customer_fname: chararray,customer_lname: chararray,customer_email: chararray,customer_password: chararray,customer_street: chararray,customer_city: chararray,customer_state: chararray,customer_zipcode: chararray);
+
+###22
+ select product_category_id, count(product_category_id) as count_cat from products group by product_category_id;
+3   prod_hive = LOAD 'retail_db.products' using org.apache.hive.hcatalog.pig.HCatLoader();
+4   prod_grouped = GROUP prod_hive BY product_category_id;
+5   prod_cat_count = FOREACH prod_grouped GENERATE group AS product_category_id, COUNT(prod_hive);
+
+###23
+select product_category_id, count(product_category_id) as count_cat, sum(product_price) as sum_price  
+from products group by product_category_id having count(product_category_id) < 24;
+3   prod_hive = LOAD 'retail_db.products' using org.apache.hive.hcatalog.pig.HCatLoader();
+4   prod_grouped = GROUP prod_hive BY product_category_id;
+5   prod_cat_count = FOREACH prod_grouped GENERATE group AS product_category_id, COUNT(prod_hive);
+6   prod_cat_count = FOREACH prod_grouped GENERATE group AS product_category_id, COUNT(prod_hive) as count_cat, SUM(prod_hive.product_price) as sum_price;
+7   filter_prod_cat_count = FILTER prod_cat_count BY (count_cat<24);
+
+
+###24
+1   hrs = LOAD '/user/root/pig6.txt' using PigStorage('|') as (hour:int, key:chararray, id:chararray, value:int);
+2   hrs_group = GROUP hrs by (hour, key);
+3   hrs_out = FOREACH hrs_group GENERATE group, SUM(hrs.value) as Total, hrs.id;
+((1,K1),5,{(002),(001)})
+((1,K2),1,{(002)})
+((2,K1),4,{(005)})
+((2,K2),11,{(004),(003)})
+
+4   hrs_out1 = FOREACH hrs_group GENERATE FLATTEN(group) AS (hour,key), SUM(hrs.value) as Total, hrs.id;
+(1,K1,5,{(002),(001)})
+(1,K2,1,{(002)})
+(2,K1,4,{(005)})
+(2,K2,11,{(004),(003)})
+
+###25
+select p.product_name, sum(o.order_item_quantity) as Total_Qty, sum(o.order_item_subtotal) as Total from order_items o 
+inner join products p on p.product_id = o.order_item_product_id group by p.product_name order by p.product_name desc;
+
+1   p = LOAD 'retail_db.products' using org.apache.hive.hcatalog.pig.HCatLoader();
+2   o =  LOAD 'retail_db.order_items'  using org.apache.hive.hcatalog.pig.HCatLoader();
+3   po = JOIN p by product_id, o by order_item_product_id;
+4   po_select = FOREACH po  GENERATE p::product_name, o::order_item_quantity, o::order_item_subtotal;
+5   po_group = GROUP po_select BY product_name;
+6   po_total = FOREACH po_group GENERATE group as product_name, SUM(po_select.order_item_quantity) AS total_qty, SUM(po_select.order_item_subtotal) AS tot;
+7   po_total_order = ORDER po_total  BY product_name DESC;
+
+This will round but no decimal place
+10   po_total = FOREACH po_group GENERATE group as product_name, ROUND(SUM(po_select.order_item_quantity)) AS total_qty, ROUND(SUM(po_select.order_item_subtotal)) AS tot;
+
+This will round with 2 decimal place
+11   po_total = FOREACH po_group GENERATE group as product_name, ROUND(SUM(po_select.order_item_quantity)) AS total_qty, ROUND(SUM(po_select.order_item_subtotal)*100f)/100f AS tot;
+12   po_total = FOREACH po_group GENERATE group as product_name, ROUND_TO(SUM(po_select.order_item_quantity),2) AS total_qty, ROUND_TO(SUM(po_select.order_item_subtotal),2) AS tot;
+
+###26
+
+13   cust = LOAD 'xademo.customer_details' using org.apache.hive.hcatalog.pig.HCatLoader();
+14   cust_filter = FILTER cust BY (imei is null);
+15   cust_filter = FILTER cust BY (imei=='');
+16   cust_file = LOAD '/apps/hive/warehouse/xademo.db/customer_details' using PigStorage('|');
+17   cust_filter_file = FILTER cust BY ($5 is null);
+18   cust_filter_file = FILTER cust BY ($5=='');
+
+###27
+create table all_users(fname string, lname string, course string, fee int);
+19   all_users = LOAD '/user/root/pig7.txt' using PigStorage('|') as (fname:chararray, lname:chararray, course:chararray, fee:int);
+20   store all_users into 'retail_db.all_users' using org.apache.hive.hcatalog.pig.HCatStorer();
+
+###28
+store customer_details_schema into 'customer_details_schema' USING PigStorage(); -- tab delimiter 
+store customer_details_schema into 'customer_details_schema' USING PigStorage(',') parallel 3; --- , delimiter and one file because there is no reducer
+store customer_details_schema into 'customer_details_schema' USING BinStorage('|');
+
+###29
+21   all_users = LOAD '/user/root/pig8.txt' using PigStorage('|') as (fname:chararray, lname:chararray, course:chararray, fee:int);
+22   user = FOREACH all_users GENERATE fname, lname, course;
+23   user_distinct = DISTINCT user;
+
+JOIN BY TWO COLUMNS -
+po = JOIN p by (product_id, second_column), o by (order_item_product_id, second_column) USING 'replicated' PARALLEL 3;
+
+
+ find / -name piggybank.jar
+ jar -vtf /usr/hdp/2.4.0.0-169/pig/piggybank.jar
+ REGISTER  /usr/hdp/2.4.0.0-169/pig/piggybank.jar
+ 
+ DEFINE PIG_UPPER org.apache.pig.piggybank.evaluation.string.UPPER
+
+
+ 
+ 
+ 
+ 
+ 

@@ -1,3 +1,37 @@
+
+
+# Usage:
+        # hdfs dfs -getmerge <src> <localdst> [addnl]
+        # hdfs dfs -getmerge <src1> <src2> <localdst> [addnl]
+# Option:
+        # addnl: can be set to enable adding a newline on end of each file
+# Example:
+        hdfs dfs -getmerge /user/hadoop/sf-salaries-2011-2013/ /user/hadoop/sf-salaries-2014/ /root/output.csv
+
+
+hdfs dfs -du -h /user
+
+### To see the help
+hadoop fs -help appendToFile
+
+
+# Usage:  
+        # hdfs dfs -du URI
+# Example:
+        hdfs dfs -du  /user/hadoop/ /user/hadoop/sf-salaries-2011-2013/sf-salaries-2011-2013.csv
+
+Understanding HDFS Quotas and Hadoop Fs and Fsck Tools		
+		http://www.michael-noll.com/blog/2011/10/20/understanding-hdfs-quotas-and-hadoop-fs-and-fsck-tools/
+
+Changing the block size when you upload a file in HDFS is very simple.
+hadoop fs -mkdir blksize
+ 
+--Copy a file to HDFS with default block size (128 MB)
+hadoop fs -copyFromLocal /hirw-starterkit/hdfs/commands/dwp-payments-april10.csv blksize
+ 
+--Override the default block size with 265 MB
+hadoop fs -D dfs.blocksize=268435456 -copyFromLocal /hirw-starterkit/hdfs/commands/dwp-payments-april10.csv blksize/dwp-payments-april10_256MB.csv
+
 Usage: hadoop fs [generic options]
 	[-appendToFile <localsrc> ... <dst>]
 	[-cat [-ignoreCrc] <src> ...]
